@@ -64,7 +64,7 @@ Gas fields (`gasUsed`, `effectiveGasPrice`) are enabled via `field_selection.tra
 |---|---|---|
 | `GET` | `/health` | Liveness probe |
 | `POST` | `/reconcile` | Trigger immediate reconciliation of failed API notifications |
-| `GET` | `/transactions/:tx_hash?chain_id=N` | On-chain gas data for a confirmed transaction |
+| `GET` | `/sync/chains/:chain_id/transactions/:tx_hash` | On-chain gas data for a confirmed transaction |
 
 The API server runs on port `3001` by default (configurable via `API_PORT`).
 
@@ -73,9 +73,9 @@ The API server runs on port `3001` by default (configurable via `API_PORT`).
 ```
 Envio HyperSync ──► src/EventHandlers.ts ──► PostgreSQL (Envio DB)
                           │
-                          └──► POST /sync/transactions (rail0-api HMAC)
+                          └──► POST /sync/chains/:chain_id/transactions/:tx_hash (rail0-api HMAC)
                                     │
-                              on failure ──► ApiSyncFailure table
+                              on failure ──► ApiSyncFailures table
                                                    │
                                             src/reconciler.ts (retry loop)
 
