@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# Production environment.
+# Run `node bin/gen-config` to patch start_block values from rail0-api.
+
+name: rail0-hyper
+description: RAIL0 payment event indexer — Envio HyperSync edition
+
+# ── Global field selection ────────────────────────────────────────────────────
+field_selection:
+  transaction_fields:
+    - hash
+    - from
+    - nonce
+    - gas
+    - gasUsed
+    - effectiveGasPrice
+  block_fields:
+    - baseFeePerGas
+
+# ── Contract definitions ──────────────────────────────────────────────────────
+contracts:
+  - name: RAIL0
+    handler: ./src/EventHandlers.ts
+    events:
+      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
+      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
+      - event: "PaymentCaptured(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentVoided(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentReleased(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentRefunded(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+
+# ── Chain / network configuration ─────────────────────────────────────────────
+# Add production chains here when ready.
+networks: []
