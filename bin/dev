@@ -34,14 +34,6 @@ if [[ ! -d "node_modules" ]]; then
   pnpm install
 fi
 
-# ── Generate config.yaml ──────────────────────────────────────────────────────
-# bin/gen-config fetches start blocks from rail0-api and writes config.yaml.
-# If rail0-api is unreachable it falls back to start_block: 0.
-# The file is plain ESM — run with node directly (package.json has "type":"module").
-
-echo "⚙️   Generating config.yaml…"
-node bin/gen-config || echo "⚠️   gen-config failed — keeping existing config.yaml"
-
 # ── Envio codegen ─────────────────────────────────────────────────────────────
 # Only needed when schema.graphql or the event list in config.yaml changes.
 # Re-run manually with: pnpm codegen
