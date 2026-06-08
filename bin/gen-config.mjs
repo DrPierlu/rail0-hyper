@@ -2,20 +2,23 @@
 /**
  * bin/gen-config.mjs
  *
- * Generates the networks section of config.yaml based on NODE_ENV, then
- * patches start_block values with live data from rail0-api.
+ * Patches the start_block values in the environment's config file using live
+ * data from rail0-api. All other content (chain IDs, RPC URLs, contract
+ * addresses, events) is left unchanged — those are maintained statically.
  *
- * config.yaml is the single source of truth for chain/contract/event
- * definitions. The static sections (field_selection, contracts/events) are
- * preserved as-is; only the networks section is regenerated on each run.
+ * Config files (committed to git, one per environment):
+ *   config.yaml         → development
+ *   config.staging.yaml → staging
+ *   config.production.yaml → production (add when ready)
  *
- * Chain definitions mirror rail0-indexer/src/chains.ts:
- *   development  → ARC Testnet only
- *   staging      → ARC Testnet + Celo Sepolia
- *   production   → (add production chains here when ready)
+ * Usage:
+ *   node bin/gen-config              # patches config.yaml (development)
+ *   NODE_ENV=staging node bin/gen-config  # patches config.staging.yaml
+ *
+ * Falls back to the existing start_block values if rail0-api is unreachable.
  *
  * Environment variables:
- *   NODE_ENV               — selects the chain list (default: development)
+ *   NODE_ENV               — selects which config file to patch (default: development)
  *   RAIL0_API_URL          — base URL of rail0-api
  *   RAIL0_API_HMAC_SECRET  — 32-byte hex shared secret
  */
@@ -27,51 +30,14 @@ import { fileURLToPath } from "node:url";
 import { load as loadYaml } from "js-yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = join(__dirname, "../config.yaml");
-
-// ── Chain definitions (mirrors rail0-indexer/src/chains.ts) ──────────────────
-
-const CHAINS = {
-  development: [
-    {
-      id: 5042002,
-      rpc: "https://rpc.testnet.arc.network",
-      contracts: [
-        { address: "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", version: "v0.7.0" },
-        { address: "0x0e393A626EfC45EBd030EBB997CDa207013C4364", version: "v0.9.0" },
-        { address: "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b", version: "v1.0.0" },
-      ],
-      startBlock: 0,
-    },
-  ],
-  staging: [
-    {
-      id: 5042002,
-      rpc: "https://rpc.testnet.arc.network",
-      contracts: [
-        { address: "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", version: "v0.7.0" },
-        { address: "0x0e393A626EfC45EBd030EBB997CDa207013C4364", version: "v0.9.0" },
-        { address: "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b", version: "v1.0.0" },
-      ],
-      startBlock: 0,
-    },
-    {
-      id: 44787,
-      rpc: "https://rpc.ankr.com/celo_sepolia",
-      contracts: [
-        { address: "0x7337ce441e831ef2904b7B2f33507d655a4381d0", version: "v0.9.0" },
-        { address: "0x0e393A626EfC45EBd030EBB997CDa207013C4364", version: "v1.0.0" },
-      ],
-      startBlock: 0,
-    },
-  ],
-  production: [
-    // Add production chains here when ready.
-  ],
-};
 
 const env = process.env.NODE_ENV ?? "development";
-const chainList = CHAINS[env] ?? CHAINS.development;
+const configFile =
+  env === "staging" ? "config.staging.yaml" :
+  env === "production" ? "config.production.yaml" :
+  "config.yaml";
+
+const CONFIG_PATH = join(__dirname, "../", configFile);
 
 // ── Fetch start blocks from rail0-api ─────────────────────────────────────────
 
@@ -81,7 +47,7 @@ async function fetchStartBlocks() {
 
   if (!baseUrl || !secret) {
     console.warn(
-      "[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — using fallback start_block: 0",
+      "[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — keeping existing start_block values",
     );
     return {};
   }
@@ -100,7 +66,7 @@ async function fetchStartBlocks() {
 
     if (!res.ok) {
       console.warn(
-        `[gen-config] GET /sync/blockchains returned ${res.status} — using fallback start_block: 0`,
+        `[gen-config] GET /sync/blockchains returned ${res.status} — keeping existing start_block values`,
       );
       return {};
     }
@@ -118,37 +84,22 @@ async function fetchStartBlocks() {
   }
 }
 
-// ── Build networks YAML section ───────────────────────────────────────────────
-
-function buildNetworksSection(startBlocks) {
-  const lines = ["networks:"];
-  for (const chain of chainList) {
-    const startBlock = startBlocks[chain.id] ?? chain.startBlock;
-    const addresses = chain.contracts.map((c) => `          - "${c.address}" # ${c.version}`).join("\n");
-    lines.push(
-      `  - id: ${chain.id}`,
-      `    start_block: ${startBlock}`,
-      `    rpc: ${chain.rpc}`,
-      `    contracts:`,
-      `      - name: RAIL0`,
-      `        address:`,
-      addresses,
-    );
-  }
-  return lines.join("\n");
-}
-
-// ── Patch config.yaml ─────────────────────────────────────────────────────────
-// Preserve everything above the networks section; regenerate networks entirely.
+// ── Patch start_block values ──────────────────────────────────────────────────
 
 const raw = readFileSync(CONFIG_PATH, "utf-8");
+const parsed = loadYaml(raw);
+const networks = parsed?.networks ?? [];
 
 const startBlocks = await fetchStartBlocks();
-const networksSection = buildNetworksSection(startBlocks);
 
-// Replace everything from "networks:" to end of file.
-const networksIndex = raw.indexOf("\nnetworks:");
-const header = networksIndex >= 0 ? raw.slice(0, networksIndex) : raw;
+let patched = raw;
+for (const network of networks) {
+  if (!(network.id in startBlocks)) continue;
+  patched = patched.replace(
+    new RegExp(`(- id: ${network.id}[\\s\\S]*?start_block: )\\d+`),
+    `$1${startBlocks[network.id]}`,
+  );
+}
 
-writeFileSync(CONFIG_PATH, `${header}\n${networksSection}\n`, "utf-8");
-console.log(`[gen-config] config.yaml written (env: ${env}, chains: ${chainList.map((c) => c.id).join(", ")})`);
+writeFileSync(CONFIG_PATH, patched, "utf-8");
+console.log(`[gen-config] ${configFile} updated (env: ${env})`);

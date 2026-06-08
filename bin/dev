@@ -59,12 +59,22 @@ if [[ ! -d "generated" ]]; then
   pnpm envio codegen
 fi
 
-# ── Generate config.yaml ─────────────────────────────────────────────────────
-# Fetches start_block per chain from rail0-api (GET /sync/blockchains).
-# Falls back to start_block: 0 if rail0-api is unreachable.
+# ── Select config file for this environment ───────────────────────────────────
 
-echo "⚙️   Generating config.yaml…"
-node "$ROOT/bin/gen-config.mjs"
+NODE_ENV="${NODE_ENV:-development}"
+if [[ "$NODE_ENV" == "staging" ]]; then
+  ENVIO_CONFIG="config.staging.yaml"
+elif [[ "$NODE_ENV" == "production" ]]; then
+  ENVIO_CONFIG="config.production.yaml"
+else
+  ENVIO_CONFIG="config.yaml"
+fi
+
+# ── Patch start_block values from rail0-api ───────────────────────────────────
+# Falls back to existing values if rail0-api is unreachable.
+
+echo "⚙️   Patching start_block in ${ENVIO_CONFIG}…"
+NODE_ENV="$NODE_ENV" node "$ROOT/bin/gen-config.mjs"
 
 # ── Start services ────────────────────────────────────────────────────────────
 
@@ -76,14 +86,14 @@ echo ""
 
 # Hono API server — runs alongside Envio, shares the same DATABASE_URL
 # --env-file loads .env directly into the node process (Node >= 20, no dotenv needed)
-NODE_ENV="${NODE_ENV:-development}" pnpm tsx --env-file=.env src/api/index.ts &
+NODE_ENV="$NODE_ENV" pnpm tsx --env-file=.env src/api/index.ts &
 API_PID=$!
 
 # Clean up the API process when this script exits (Ctrl-C or Envio crash)
 trap 'echo ""; echo "Stopping…"; kill "$API_PID" 2>/dev/null; wait "$API_PID" 2>/dev/null; exit 0' INT TERM EXIT
 
 # Envio indexer (foreground — its output is the primary log stream)
-NODE_ENV="${NODE_ENV:-development}" pnpm envio dev
+NODE_ENV="$NODE_ENV" pnpm envio dev --config "$ENVIO_CONFIG"
 
 # If envio exits cleanly, wait for the API process too
 wait "$API_PID" 2>/dev/null || true
