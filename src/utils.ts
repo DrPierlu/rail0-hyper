@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { config } from "./config";
 import { ApiResponseError } from "./api-client";
+import { config } from "./config";
 
 // ── rail0_id checksum verification ────────────────────────────────────────────
 
@@ -18,8 +18,8 @@ export function isApiPaymentId(paymentId: `0x${string}`): boolean {
   const bytes = Buffer.from(paymentId.slice(2), "hex");
   if (bytes.length !== 32) return false;
   const checksum = bytes.subarray(0, 4);
-  const payload  = bytes.subarray(4);
-  const digest   = createHash("sha256").update(payload).digest();
+  const payload = bytes.subarray(4);
+  const digest = createHash("sha256").update(payload).digest();
   return digest.subarray(28).equals(checksum);
 }
 
@@ -41,17 +41,29 @@ export async function withRetry(
     try {
       await fn();
       if (attempt > 1) {
-        console.log(JSON.stringify({ component: "indexer", event: "notify_api_recovered", attempt }));
+        console.log(
+          JSON.stringify({ component: "indexer", event: "notify_api_recovered", attempt }),
+        );
       }
       return { ok: true, attempts: attempt };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       if (err instanceof ApiResponseError) {
-        console.log(JSON.stringify({ component: "indexer", event: "notify_api_error_response", attempt, status: err.status, error }));
+        console.log(
+          JSON.stringify({
+            component: "indexer",
+            event: "notify_api_error_response",
+            attempt,
+            status: err.status,
+            error,
+          }),
+        );
         return { ok: false, error };
       }
       if (attempt < maxAttempts) {
-        console.log(JSON.stringify({ component: "indexer", event: "notify_api_retry", attempt, error }));
+        console.log(
+          JSON.stringify({ component: "indexer", event: "notify_api_retry", attempt, error }),
+        );
         await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)));
       } else {
         return { ok: false, error };

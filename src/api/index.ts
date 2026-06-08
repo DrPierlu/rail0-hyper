@@ -26,9 +26,9 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { Pool } from "pg";
 
+import { config } from "../config";
 import { startReconciler } from "../reconciler";
 import { startSweeper } from "../sweeper";
-import { config } from "../config";
 
 // ── DB pool ───────────────────────────────────────────────────────────────────
 
@@ -95,15 +95,16 @@ app.post("/reconcile", async (c) => {
  * Response 404: { error: "not_found" }
  */
 app.get("/transactions/:tx_hash", async (c) => {
-  const txHash   = c.req.param("tx_hash");
+  const txHash = c.req.param("tx_hash");
   const chainStr = c.req.query("chain_id");
-  const chainId  = chainStr ? Number(chainStr) : undefined;
+  const chainId = chainStr ? Number(chainStr) : undefined;
 
   if (chainStr && Number.isNaN(chainId)) {
     return c.json({ error: "invalid_chain_id" }, 400);
   }
 
-  let result;
+  // biome-ignore lint/suspicious/noExplicitAny: pg QueryResult rows are untyped
+  let result: import("pg").QueryResult<Record<string, unknown>>;
   try {
     if (chainId !== undefined) {
       result = await pool.query(
@@ -111,10 +112,9 @@ app.get("/transactions/:tx_hash", async (c) => {
         [txHash, chainId],
       );
     } else {
-      result = await pool.query(
-        `SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 LIMIT 1`,
-        [txHash],
-      );
+      result = await pool.query(`SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 LIMIT 1`, [
+        txHash,
+      ]);
     }
   } catch (err) {
     console.error("[api] DB query error:", err);
@@ -127,22 +127,22 @@ app.get("/transactions/:tx_hash", async (c) => {
   }
 
   // BigInt arithmetic — values come back as strings from pg when > MAX_SAFE_INTEGER.
-  const gasUsed           = BigInt(row.gasUsed);
-  const effectiveGasPrice = BigInt(row.effectiveGasPrice);
-  const gasCost           = gasUsed * effectiveGasPrice;
+  const gasUsed = BigInt(row.gasUsed as string);
+  const effectiveGasPrice = BigInt(row.effectiveGasPrice as string);
+  const gasCost = gasUsed * effectiveGasPrice;
 
   return c.json({
-    tx_hash:             row.txHash,
-    payment_id:          row.paymentId,
-    chain_id:            row.chainId,
-    event_type:          row.eventType,
-    block_number:        String(row.blockNumber),
-    block_timestamp:     row.blockTimestamp,
-    gas_limit:           String(row.gasLimit),
-    gas_used:            gasUsed.toString(),
+    tx_hash: row.txHash,
+    payment_id: row.paymentId,
+    chain_id: row.chainId,
+    event_type: row.eventType,
+    block_number: String(row.blockNumber),
+    block_timestamp: row.blockTimestamp,
+    gas_limit: String(row.gasLimit),
+    gas_used: gasUsed.toString(),
     effective_gas_price: effectiveGasPrice.toString(),
-    gas_cost:            gasCost.toString(),
-    base_fee_per_gas:    row.baseFeePerGas != null ? String(row.baseFeePerGas) : null,
+    gas_cost: gasCost.toString(),
+    base_fee_per_gas: row.baseFeePerGas != null ? String(row.baseFeePerGas) : null,
   });
 });
 

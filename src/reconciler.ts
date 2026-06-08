@@ -1,6 +1,11 @@
 import { Pool } from "pg";
 
-import { notifyApi, notifyApiFail, type ApiNotifyPayload, type ApiFailPayload } from "./api-client.js";
+import {
+  type ApiFailPayload,
+  type ApiNotifyPayload,
+  notifyApi,
+  notifyApiFail,
+} from "./api-client.js";
 import { config } from "./config";
 import { withRetry } from "./utils";
 
@@ -73,15 +78,13 @@ export async function reconcile(pool: Pool): Promise<void> {
     });
 
     if (result.ok) {
-      await pool.query(
-        'UPDATE api_sync_failures SET resolved_at = $1 WHERE id = $2',
-        [Math.floor(Date.now() / 1000), row.id],
-      );
+      await pool.query("UPDATE api_sync_failures SET resolved_at = $1 WHERE id = $2", [
+        Math.floor(Date.now() / 1000),
+        row.id,
+      ]);
       resolved++;
     } else {
-      console.warn(
-        `[reconciler] Failed to resolve ${row.id} (${row.event_type}): ${result.error}`,
-      );
+      console.warn(`[reconciler] Failed to resolve ${row.id} (${row.event_type}): ${result.error}`);
     }
   }
 
@@ -107,7 +110,8 @@ export function startReconciler(): { triggerNow: () => Promise<void> } {
   }
 
   const pool = new Pool({ connectionString, max: 2 });
-  const run = () => reconcile(pool).catch((err) => console.error("[reconciler] Unexpected error:", err));
+  const run = () =>
+    reconcile(pool).catch((err) => console.error("[reconciler] Unexpected error:", err));
 
   if (config.reconcileIntervalSecs > 0) {
     // Run once immediately, then on schedule.

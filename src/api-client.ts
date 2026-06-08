@@ -47,13 +47,7 @@ export class ApiResponseError extends Error {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ApiNotifyPayload = {
-  eventType:
-    | "authorized"
-    | "charged"
-    | "captured"
-    | "voided"
-    | "released"
-    | "refunded";
+  eventType: "authorized" | "charged" | "captured" | "voided" | "released" | "refunded";
   chainId: number;
   paymentId: `0x${string}`;
   blockNumber: number;
@@ -71,9 +65,7 @@ export type ApiFailPayload = {
 
 function signedRequest(secret: string, path: string, body: string) {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = createHmac("sha256", secret)
-    .update(`${timestamp}.${body}`)
-    .digest("hex");
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   return {
     url: `${process.env.RAIL0_API_URL}${path}`,
     headers: {
@@ -95,19 +87,16 @@ function requireEnv(): { baseUrl: string; secret: string } {
 
 // ── POST /sync/transactions (confirm) ────────────────────────────────────────
 
-export async function notifyApi(
-  txHash: `0x${string}`,
-  payload: ApiNotifyPayload,
-): Promise<void> {
+export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload): Promise<void> {
   const { secret } = requireEnv();
   const body = JSON.stringify({
     transaction_hash: txHash,
-    chain_id:         payload.chainId,
-    operation:        "confirm",
-    payment_id:       payload.paymentId,
-    event_type:       payload.eventType,
-    block_number:     payload.blockNumber,
-    amount:           payload.amount,
+    chain_id: payload.chainId,
+    operation: "confirm",
+    payment_id: payload.paymentId,
+    event_type: payload.eventType,
+    block_number: payload.blockNumber,
+    amount: payload.amount,
   });
   const { url, headers } = signedRequest(secret, "/sync/transactions", body);
 
@@ -120,24 +109,24 @@ export async function notifyApi(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ApiResponseError(res.status, `rail0-api POST /sync/transactions responded ${res.status}: ${text}`);
+    throw new ApiResponseError(
+      res.status,
+      `rail0-api POST /sync/transactions responded ${res.status}: ${text}`,
+    );
   }
 }
 
 // ── POST /sync/transactions (fail) ───────────────────────────────────────────
 
-export async function notifyApiFail(
-  txHash: `0x${string}`,
-  payload: ApiFailPayload,
-): Promise<void> {
+export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPayload): Promise<void> {
   const { secret } = requireEnv();
   const body = JSON.stringify({
     transaction_hash: txHash,
-    chain_id:         payload.chainId,
-    operation:        "fail",
-    payment_id:       payload.paymentId,
-    block_number:     payload.blockNumber,
-    revert_reason:    payload.revertReason,
+    chain_id: payload.chainId,
+    operation: "fail",
+    payment_id: payload.paymentId,
+    block_number: payload.blockNumber,
+    revert_reason: payload.revertReason,
   });
   const { url, headers } = signedRequest(secret, "/sync/transactions", body);
 
@@ -150,6 +139,9 @@ export async function notifyApiFail(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ApiResponseError(res.status, `rail0-api POST /sync/transactions responded ${res.status}: ${text}`);
+    throw new ApiResponseError(
+      res.status,
+      `rail0-api POST /sync/transactions responded ${res.status}: ${text}`,
+    );
   }
 }

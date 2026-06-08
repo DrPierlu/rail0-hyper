@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "bash bin/dev",
+    "build": "tsup",
     "gen-config": "node bin/gen-config.mjs",
     "codegen": "envio codegen",
     "start": "concurrently \"envio start\" \"tsx src/api/index.ts\"",
     "api": "tsx src/api/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "biome lint ./src ./abis",
     "lint:fix": "biome lint --write ./src ./abis",
     "format": "biome format --write .",
@@ -27,8 +30,10 @@
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.15.21",
     "@types/pg": "^8.20.0",
+    "tsup": "^8.5.0",
     "tsx": "^4.19.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=18.14"

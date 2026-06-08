@@ -24,7 +24,7 @@
 
 import { createHmac } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,25 +64,27 @@ const CHAINS = {
 
 const env = process.env.NODE_ENV;
 const chainList =
-  env === "production" ? CHAINS.production :
-  env === "staging"    ? CHAINS.staging    :
-                         CHAINS.development;
+  env === "production"
+    ? CHAINS.production
+    : env === "staging"
+      ? CHAINS.staging
+      : CHAINS.development;
 
 // ── Fetch start blocks from rail0-api ─────────────────────────────────────────
 
 async function fetchStartBlocks() {
   const baseUrl = process.env.RAIL0_API_URL;
-  const secret  = process.env.RAIL0_API_HMAC_SECRET;
+  const secret = process.env.RAIL0_API_HMAC_SECRET;
 
   if (!baseUrl || !secret) {
-    console.warn("[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — using fallback start blocks");
+    console.warn(
+      "[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — using fallback start blocks",
+    );
     return {};
   }
 
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = createHmac("sha256", secret)
-    .update(`${timestamp}.`)
-    .digest("hex");
+  const signature = createHmac("sha256", secret).update(`${timestamp}.`).digest("hex");
 
   try {
     const res = await fetch(`${baseUrl}/sync/blockchains`, {
@@ -94,7 +96,9 @@ async function fetchStartBlocks() {
     });
 
     if (!res.ok) {
-      console.warn(`[gen-config] GET /sync/blockchains returned ${res.status} — using fallback start blocks`);
+      console.warn(
+        `[gen-config] GET /sync/blockchains returned ${res.status} — using fallback start blocks`,
+      );
       return {};
     }
 
@@ -174,7 +178,14 @@ contracts:
 
 # ── Chain / network configuration ─────────────────────────────────────────────
 networks:
-${chainBlocks.map((b) => b.split("\n").map((l) => (l.trim() ? `  ${l}` : l)).join("\n")).join("\n")}
+${chainBlocks
+  .map((b) =>
+    b
+      .split("\n")
+      .map((l) => (l.trim() ? `  ${l}` : l))
+      .join("\n"),
+  )
+  .join("\n")}
 `;
 }
 

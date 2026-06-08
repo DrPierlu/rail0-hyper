@@ -21,24 +21,24 @@
 
 export interface ChainConfig {
   /** EVM chain ID */
-  chainId: number
+  chainId: number;
   /**
    * HTTP RPC endpoint for this chain.
    * For public endpoints (no API key), hardcode the URL.
    * For private endpoints, reference an env var inline:
    *   `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
    */
-  rpcUrl: string
+  rpcUrl: string;
   /**
    * All RAIL0 contract addresses deployed on this chain.
    * Include every version — older contracts still emit events.
    */
-  contracts: `0x${string}`[]
+  contracts: `0x${string}`[];
   /**
    * Fallback start block used only when rail0-api is unreachable at startup.
    * Leave at 0 — the real value comes from GET /sync/start_blocks.
    */
-  startBlock: number
+  startBlock: number;
 }
 
 // ── Per-environment chain lists ────────────────────────────────────────────────
@@ -95,6 +95,4 @@ const production: ChainConfig[] = [
 const env = process.env.NODE_ENV;
 
 export const chainConfigs: ChainConfig[] =
-  env === "production" ? production :
-  env === "staging"    ? staging    :
-                         development;
+  env === "production" ? production : env === "staging" ? staging : development;

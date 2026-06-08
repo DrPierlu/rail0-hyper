@@ -19,7 +19,7 @@
  */
 
 import { createHmac } from "node:crypto";
-import { createPublicClient, http } from "viem";
+import { http, createPublicClient } from "viem";
 import { chainConfigs } from "./chains.js";
 import { config } from "./config.js";
 
@@ -40,20 +40,18 @@ type SyncTransactionsResponse = {
 // Maps rail0-api "operation" (verb) to the event_type expected by POST /sync/transactions.
 const OPERATION_TO_EVENT_TYPE: Record<string, string> = {
   authorize: "authorized",
-  charge:    "charged",
-  capture:   "captured",
-  void:      "voided",
-  release:   "released",
-  refund:    "refunded",
+  charge: "charged",
+  capture: "captured",
+  void: "voided",
+  release: "released",
+  refund: "refunded",
 };
 
 // ── HMAC helper ───────────────────────────────────────────────────────────────
 
 function makeHmacHeaders(secret: string, body: string) {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = createHmac("sha256", secret)
-    .update(`${timestamp}.${body}`)
-    .digest("hex");
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   return {
     "Content-Type": "application/json",
     "X-Rail0-Timestamp": timestamp,
@@ -69,17 +67,14 @@ function makeHmacGetHeaders(secret: string) {
 // ── viem clients per chain ────────────────────────────────────────────────────
 
 const clients = new Map(
-  chainConfigs.map((c) => [
-    c.chainId,
-    createPublicClient({ transport: http(c.rpcUrl) }),
-  ]),
+  chainConfigs.map((c) => [c.chainId, createPublicClient({ transport: http(c.rpcUrl) })]),
 );
 
 // ── Core sweep logic ──────────────────────────────────────────────────────────
 
 export async function sweep(): Promise<void> {
   const baseUrl = process.env.RAIL0_API_URL;
-  const secret  = process.env.RAIL0_API_HMAC_SECRET;
+  const secret = process.env.RAIL0_API_HMAC_SECRET;
 
   if (!baseUrl || !secret) {
     console.warn("[sweeper] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — skipping");
@@ -91,7 +86,7 @@ export async function sweep(): Promise<void> {
   try {
     const res = await fetch(`${baseUrl}/sync/transactions`, {
       headers: makeHmacGetHeaders(secret),
-      signal:  AbortSignal.timeout(config.apiTimeoutMs),
+      signal: AbortSignal.timeout(config.apiTimeoutMs),
     });
     if (!res.ok) {
       console.warn(`[sweeper] GET /sync/transactions failed: ${res.status}`);
@@ -106,7 +101,9 @@ export async function sweep(): Promise<void> {
 
   if (staleTxs.length === 0) return;
 
-  console.log(JSON.stringify({ component: "sweeper", event: "checking_stale_txs", count: staleTxs.length }));
+  console.log(
+    JSON.stringify({ component: "sweeper", event: "checking_stale_txs", count: staleTxs.length }),
+  );
 
   // 2. Check each tx on-chain.
   await Promise.allSettled(staleTxs.map((tx) => checkTx(tx, baseUrl, secret)));
@@ -115,7 +112,14 @@ export async function sweep(): Promise<void> {
 async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<void> {
   const client = clients.get(tx.chain_id);
   if (!client) {
-    console.warn(JSON.stringify({ component: "sweeper", event: "unknown_chain", chain_id: tx.chain_id, tx: tx.transaction_hash }));
+    console.warn(
+      JSON.stringify({
+        component: "sweeper",
+        event: "unknown_chain",
+        chain_id: tx.chain_id,
+        tx: tx.transaction_hash,
+      }),
+    );
     return;
   }
 
@@ -128,23 +132,31 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
     if (msg.includes("could not be found") || msg.includes("TransactionReceiptNotFoundError")) {
       return; // still in mempool — expected
     }
-    console.warn(JSON.stringify({ component: "sweeper", event: "receipt_error", tx: tx.transaction_hash, error: msg }));
+    console.warn(
+      JSON.stringify({
+        component: "sweeper",
+        event: "receipt_error",
+        tx: tx.transaction_hash,
+        error: msg,
+      }),
+    );
     return;
   }
 
   if (!receipt) return; // still in mempool
 
   if (receipt.status === "reverted") {
-    let revertReason: string | undefined = (receipt as unknown as { revertReason?: string }).revertReason;
+    let revertReason: string | undefined = (receipt as unknown as { revertReason?: string })
+      .revertReason;
 
     if (!revertReason) {
       try {
         const originalTx = await client.getTransaction({ hash: tx.transaction_hash });
         await client.call({
-          to:          originalTx.to ?? undefined,
-          data:        originalTx.input,
-          value:       originalTx.value,
-          gas:         originalTx.gas,
+          to: originalTx.to ?? undefined,
+          data: originalTx.input,
+          value: originalTx.value,
+          gas: originalTx.gas,
           blockNumber: receipt.blockNumber,
         });
       } catch (err) {
@@ -153,49 +165,84 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
       }
     }
 
-    console.warn(JSON.stringify({ component: "sweeper", event: "revert_detected", tx: tx.transaction_hash, payment: tx.payment_id, revert_reason: revertReason }));
+    console.warn(
+      JSON.stringify({
+        component: "sweeper",
+        event: "revert_detected",
+        tx: tx.transaction_hash,
+        payment: tx.payment_id,
+        revert_reason: revertReason,
+      }),
+    );
     await postSync(baseUrl, secret, {
       transaction_hash: tx.transaction_hash,
-      payment_id:       tx.payment_id,
-      chain_id:         tx.chain_id,
-      operation:        "fail",
-      block_number:     Number(receipt.blockNumber),
-      revert_reason:    revertReason,
+      payment_id: tx.payment_id,
+      chain_id: tx.chain_id,
+      operation: "fail",
+      block_number: Number(receipt.blockNumber),
+      revert_reason: revertReason,
     });
-
   } else if (receipt.status === "success") {
     const event_type = OPERATION_TO_EVENT_TYPE[tx.operation];
     if (!event_type) {
-      console.warn(JSON.stringify({ component: "sweeper", event: "unknown_operation", operation: tx.operation, tx: tx.transaction_hash }));
+      console.warn(
+        JSON.stringify({
+          component: "sweeper",
+          event: "unknown_operation",
+          operation: tx.operation,
+          tx: tx.transaction_hash,
+        }),
+      );
       return;
     }
-    console.warn(JSON.stringify({ component: "sweeper", event: "confirmed_not_indexed", tx: tx.transaction_hash, payment: tx.payment_id, event_type }));
+    console.warn(
+      JSON.stringify({
+        component: "sweeper",
+        event: "confirmed_not_indexed",
+        tx: tx.transaction_hash,
+        payment: tx.payment_id,
+        event_type,
+      }),
+    );
     await postSync(baseUrl, secret, {
       transaction_hash: tx.transaction_hash,
-      payment_id:       tx.payment_id,
-      chain_id:         tx.chain_id,
-      operation:        "confirm",
+      payment_id: tx.payment_id,
+      chain_id: tx.chain_id,
+      operation: "confirm",
       event_type,
-      block_number:     Number(receipt.blockNumber),
+      block_number: Number(receipt.blockNumber),
     });
   }
 }
 
-async function postSync(baseUrl: string, secret: string, body: Record<string, unknown>): Promise<void> {
+async function postSync(
+  baseUrl: string,
+  secret: string,
+  body: Record<string, unknown>,
+): Promise<void> {
   const bodyStr = JSON.stringify(body);
   try {
     const res = await fetch(`${baseUrl}/sync/transactions`, {
-      method:  "POST",
+      method: "POST",
       headers: makeHmacHeaders(secret, bodyStr),
-      body:    bodyStr,
-      signal:  AbortSignal.timeout(config.apiTimeoutMs),
+      body: bodyStr,
+      signal: AbortSignal.timeout(config.apiTimeoutMs),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      console.warn(JSON.stringify({ component: "sweeper", event: "post_sync_failed", status: res.status, body: text }));
+      console.warn(
+        JSON.stringify({
+          component: "sweeper",
+          event: "post_sync_failed",
+          status: res.status,
+          body: text,
+        }),
+      );
     }
   } catch (err) {
-    console.warn(JSON.stringify({ component: "sweeper", event: "post_sync_error", error: String(err) }));
+    console.warn(
+      JSON.stringify({ component: "sweeper", event: "post_sync_error", error: String(err) }),
+    );
   }
 }
 
