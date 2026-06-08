@@ -36,9 +36,18 @@ if [[ ! -d "node_modules" ]]; then
   pnpm install
 fi
 
-if [[ -d "generated" && ! -d "generated/node_modules" ]]; then
-  echo "📦  Installing generated/ dependencies…"
-  (cd generated && pnpm install)
+if [[ -d "generated" ]]; then
+  if [[ ! -d "generated/node_modules" ]]; then
+    echo "📦  Installing generated/ dependencies…"
+    # --ignore-scripts avoids spurious husky/prepare hook failures from transitive deps
+    (cd generated && npm install --ignore-scripts)
+  fi
+  # ReScript dependencies (e.g. rescript-envsafe) ship only source .res files —
+  # they must be compiled before the indexer can start.
+  if [[ ! -f "generated/node_modules/rescript-envsafe/src/EnvSafe.res.js" ]]; then
+    echo "🔨  Compiling ReScript dependencies…"
+    (cd generated && npm run build)
+  fi
 fi
 
 # ── Envio codegen ─────────────────────────────────────────────────────────────
