@@ -1,0 +1,82 @@
+# ── Payment ───────────────────────────────────────────────────────────────────
+# One record per on-chain payment, updated in place as events arrive.
+# id = "{chainId}_{paymentId}" to keep records unique across chains.
+#
+# Nullable fields (payer, payee, token, …) allow update-only events (Captured,
+# Voided, Released, Refunded) to set only the mutable columns without knowing
+# the full payment config.
+
+type Payment {
+  id: ID!
+  paymentId: String!
+  chainId: Int!
+
+  # Payment struct — set at authorize/charge time, never change
+  payer: String
+  payee: String
+  token: String
+  amount: BigInt
+  feeBps: Int
+  feeReceiver: String
+  authorizationExpiry: BigInt
+  refundExpiry: BigInt
+
+  # Mutable state
+  status: String!
+  capturableAmount: BigInt!
+  refundableAmount: BigInt!
+
+  # Metadata from the creating event
+  txHash: String
+  blockNumber: BigInt
+  blockTimestamp: Int
+}
+
+# ── PaymentEvent ──────────────────────────────────────────────────────────────
+# Append-only log of every on-chain event touching a payment.
+# id = "{chainId}_{txHash}_{logIndex}"
+
+type PaymentEvent {
+  id: ID!
+  paymentId: String!
+  chainId: Int!
+  eventType: String!
+
+  # Present on Captured / Voided / Released / Refunded; absent on Authorized / Charged
+  amount: BigInt
+
+  # Block context
+  txHash: String!
+  blockNumber: BigInt!
+  blockTimestamp: Int!
+
+  # Transaction identity
+  txFrom: String!
+  txNonce: Int!
+
+  # Gas (requires field_selection in config.yaml)
+  gasLimit: BigInt!
+  gasUsed: BigInt!
+  effectiveGasPrice: BigInt!
+  baseFeePerGas: BigInt
+}
+
+# ── ApiSyncFailure ────────────────────────────────────────────────────────────
+# Records rail0-api notification attempts that exhausted all retries.
+# The background reconciler retries these and marks them resolved (resolvedAt).
+
+type ApiSyncFailure {
+  id: ID!
+  eventType: String!
+  # FK → Payment.id  ("{chainId}_{paymentId}")
+  paymentId: String!
+
+  # Retry state
+  payload: String!
+  attempts: Int!
+  lastError: String!
+
+  # Timestamps
+  createdAt: Int!
+  resolvedAt: Int
+}

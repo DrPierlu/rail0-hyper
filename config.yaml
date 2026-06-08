@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# BASE CONFIG — committed with start_block: 0 as a safe fallback.
+# At startup, bin/gen-config overwrites this file with actual start blocks
+# fetched from GET /sync/blockchains on rail0-api.
+#
+# To regenerate manually:
+#   node bin/gen-config
+
+name: rail0-hyper
+description: RAIL0 payment event indexer — Envio HyperSync edition
+
+# ── Global field selection ────────────────────────────────────────────────────
+# gas fields (gasUsed, effectiveGasPrice) and baseFeePerGas are required for
+# the GET /transactions/:tx_hash endpoint.
+#
+# NOTE: selecting transaction_fields triggers an additional RPC call (receipt)
+# per event to populate gas data. This is equivalent to Ponder's
+# includeTransactionReceipts: true. Evaluate the RPC cost vs. benefit before
+# enabling on high-volume chains or paid providers.
+field_selection:
+  transaction_fields:
+    - hash
+    - from
+    - nonce
+    - gas
+    - gasUsed
+    - effectiveGasPrice
+  block_fields:
+    - baseFeePerGas
+
+# ── Contract definitions ──────────────────────────────────────────────────────
+contracts:
+  - name: RAIL0
+    events:
+      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
+      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
+      - event: "PaymentCaptured(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentVoided(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentReleased(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+      - event: "PaymentRefunded(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
+
+# ── Chain / network configuration ─────────────────────────────────────────────
+# development — ARC Testnet only (mirrors staging)
+# staging     — ARC Testnet + Celo Sepolia
+# production  — TBD
+#
+# NODE_ENV selects the active chain set; bin/gen-config rewrites these entries
+# with the correct start_block from rail0-api at startup.
+
+chains:
+  - id: 5042002
+    start_block: 0
+    rpc: https://rpc.testnet.arc.network
+    contracts:
+      - name: RAIL0
+        address:
+          - "0x0e393A626EfC45EBd030EBB997CDa207013C4364"

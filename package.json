@@ -1,0 +1,37 @@
+{
+  "name": "rail0-hyper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash bin/dev",
+    "gen-config": "node --input-type=module < bin/gen-config",
+    "codegen": "envio codegen",
+    "start": "concurrently \"envio start\" \"tsx src/api/index.ts\"",
+    "api": "tsx src/api/index.ts",
+    "lint": "biome lint ./src ./abis",
+    "lint:fix": "biome lint --write ./src ./abis",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "concurrently": "^9.1.2",
+    "envio": "^2.12.0",
+    "hono": "^4.12.23",
+    "pg": "^8.21.0",
+    "viem": "^2.51.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.15.21",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.14"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

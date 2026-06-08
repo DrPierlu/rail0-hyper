@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# bin/dev — Start rail0-hyper in development mode.
+#
+# Steps:
+#   1. Check prerequisites
+#   2. Generate config.yaml from rail0-api (with fallback to start_block: 0)
+#   3. Run Envio codegen (if generated/ is absent or outdated)
+#   4. Start Envio indexer + standalone Hono API server in parallel
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+# ── Load .env if present ──────────────────────────────────────────────────────
+
+if [[ -f ".env" ]]; then
+  set -o allexport
+  # shellcheck source=/dev/null
+  source .env
+  set +o allexport
+fi
+
+# ── Prerequisites ─────────────────────────────────────────────────────────────
+
+command -v node >/dev/null 2>&1 || { echo "❌ node not found"; exit 1; }
+command -v pnpm >/dev/null 2>&1 || { echo "❌ pnpm not found"; exit 1; }
+
+if [[ ! -d "node_modules" ]]; then
+  echo "📦 Installing dependencies…"
+  pnpm install
+fi
+
+# ── Generate config.yaml ──────────────────────────────────────────────────────
+
+echo "⚙️  Generating config.yaml…"
+node --input-type=module < bin/gen-config || {
+  echo "⚠️  gen-config failed — using existing config.yaml"
+}
+
+# ── Codegen (if needed) ───────────────────────────────────────────────────────
+
+if [[ ! -d "generated" ]]; then
+  echo "🔧 Running Envio codegen…"
+  pnpm envio codegen
+fi
+
+# ── Start services ────────────────────────────────────────────────────────────
+
+echo "🚀 Starting Envio indexer…"
+# API server runs alongside Envio as a background process.
+# Both share the same DATABASE_URL.
+NODE_ENV="${NODE_ENV:-development}" \
+  pnpm tsx src/api/index.ts &
+API_PID=$!
+
+trap "kill $API_PID 2>/dev/null; exit" INT TERM
+
+NODE_ENV="${NODE_ENV:-development}" \
+  pnpm envio dev
+
+wait $API_PID
