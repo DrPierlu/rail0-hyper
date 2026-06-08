@@ -28,10 +28,17 @@ command -v node >/dev/null 2>&1 || { echo "❌  node not found"; exit 1; }
 command -v pnpm >/dev/null 2>&1 || { echo "❌  pnpm not found"; exit 1; }
 
 # ── Dependencies ──────────────────────────────────────────────────────────────
+# pnpm install at root links the workspace packages.
+# generated/ has its own node_modules that must also be installed.
 
 if [[ ! -d "node_modules" ]]; then
   echo "📦  Installing dependencies…"
   pnpm install
+fi
+
+if [[ -d "generated" && ! -d "generated/node_modules" ]]; then
+  echo "📦  Installing generated/ dependencies…"
+  (cd generated && pnpm install)
 fi
 
 # ── Envio codegen ─────────────────────────────────────────────────────────────
