@@ -3,9 +3,10 @@
 #
 # Steps:
 #   1. Check prerequisites
-#   2. Generate config.yaml from rail0-api (with fallback to start_block: 0)
-#   3. Run Envio codegen (if generated/ is absent or outdated)
-#   4. Start Envio indexer + standalone Hono API server in parallel
+#   2. Install dependencies if needed
+#   3. Generate config.yaml from rail0-api (fallback: start_block 0)
+#   4. Run Envio codegen if generated/ is absent
+#   5. Start Envio indexer + Hono API server in parallel
 
 set -euo pipefail
 
@@ -23,40 +24,50 @@ fi
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 
-command -v node >/dev/null 2>&1 || { echo "❌ node not found"; exit 1; }
-command -v pnpm >/dev/null 2>&1 || { echo "❌ pnpm not found"; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "❌  node not found"; exit 1; }
+command -v pnpm >/dev/null 2>&1 || { echo "❌  pnpm not found"; exit 1; }
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
 
 if [[ ! -d "node_modules" ]]; then
-  echo "📦 Installing dependencies…"
+  echo "📦  Installing dependencies…"
   pnpm install
 fi
 
 # ── Generate config.yaml ──────────────────────────────────────────────────────
+# bin/gen-config fetches start blocks from rail0-api and writes config.yaml.
+# If rail0-api is unreachable it falls back to start_block: 0.
+# The file is plain ESM — run with node directly (package.json has "type":"module").
 
-echo "⚙️  Generating config.yaml…"
-node --input-type=module < bin/gen-config || {
-  echo "⚠️  gen-config failed — using existing config.yaml"
-}
+echo "⚙️   Generating config.yaml…"
+node bin/gen-config || echo "⚠️   gen-config failed — keeping existing config.yaml"
 
-# ── Codegen (if needed) ───────────────────────────────────────────────────────
+# ── Envio codegen ─────────────────────────────────────────────────────────────
+# Only needed when schema.graphql or the event list in config.yaml changes.
+# Re-run manually with: pnpm codegen
 
 if [[ ! -d "generated" ]]; then
-  echo "🔧 Running Envio codegen…"
+  echo "🔧  Running Envio codegen…"
   pnpm envio codegen
 fi
 
 # ── Start services ────────────────────────────────────────────────────────────
 
-echo "🚀 Starting Envio indexer…"
-# API server runs alongside Envio as a background process.
-# Both share the same DATABASE_URL.
-NODE_ENV="${NODE_ENV:-development}" \
-  pnpm tsx src/api/index.ts &
+echo ""
+echo "🚀  Starting rail0-hyper…"
+echo "    Envio indexer  → http://localhost:8080"
+echo "    Hono API       → http://localhost:${API_PORT:-3001}"
+echo ""
+
+# Hono API server — runs alongside Envio, shares the same DATABASE_URL
+NODE_ENV="${NODE_ENV:-development}" pnpm tsx src/api/index.ts &
 API_PID=$!
 
-trap "kill $API_PID 2>/dev/null; exit" INT TERM
+# Clean up the API process when this script exits (Ctrl-C or Envio crash)
+trap 'echo ""; echo "Stopping…"; kill "$API_PID" 2>/dev/null; wait "$API_PID" 2>/dev/null; exit 0' INT TERM EXIT
 
-NODE_ENV="${NODE_ENV:-development}" \
-  pnpm envio dev
+# Envio indexer (foreground — its output is the primary log stream)
+NODE_ENV="${NODE_ENV:-development}" pnpm envio dev
 
-wait $API_PID
+# If envio exits cleanly, wait for the API process too
+wait "$API_PID" 2>/dev/null || true
