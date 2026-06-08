@@ -186,11 +186,9 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
         revert_reason: revertReason,
       }),
     );
-    await postSync(baseUrl, secret, {
-      transaction_hash: tx.transaction_hash,
-      payment_id: tx.payment_id,
-      chain_id: tx.chain_id,
+    await postSync(baseUrl, secret, tx.chain_id, tx.transaction_hash, {
       operation: "fail",
+      payment_id: tx.payment_id,
       block_number: Number(receipt.blockNumber),
       revert_reason: revertReason,
     });
@@ -216,11 +214,9 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
         event_type,
       }),
     );
-    await postSync(baseUrl, secret, {
-      transaction_hash: tx.transaction_hash,
-      payment_id: tx.payment_id,
-      chain_id: tx.chain_id,
+    await postSync(baseUrl, secret, tx.chain_id, tx.transaction_hash, {
       operation: "confirm",
+      payment_id: tx.payment_id,
       event_type,
       block_number: Number(receipt.blockNumber),
     });
@@ -230,11 +226,14 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
 async function postSync(
   baseUrl: string,
   secret: string,
+  chainId: number,
+  txHash: `0x${string}`,
   body: Record<string, unknown>,
 ): Promise<void> {
+  const path = `/chains/${chainId}/transactions/${txHash}`;
   const bodyStr = JSON.stringify(body);
   try {
-    const res = await fetch(`${baseUrl}/sync/transactions`, {
+    const res = await fetch(`${baseUrl}${path}`, {
       method: "POST",
       headers: makeHmacHeaders(secret, bodyStr),
       body: bodyStr,

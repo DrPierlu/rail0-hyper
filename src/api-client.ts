@@ -85,20 +85,19 @@ function requireEnv(): { baseUrl: string; secret: string } {
   return { baseUrl, secret };
 }
 
-// ── POST /sync/transactions (confirm) ────────────────────────────────────────
+// ── POST /chains/:chain_id/transactions/:tx_hash (confirm) ───────────────────
 
 export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload): Promise<void> {
   const { secret } = requireEnv();
   const body = JSON.stringify({
-    transaction_hash: txHash,
-    chain_id: payload.chainId,
     operation: "confirm",
     payment_id: payload.paymentId,
     event_type: payload.eventType,
     block_number: payload.blockNumber,
     amount: payload.amount,
   });
-  const { url, headers } = signedRequest(secret, "/sync/transactions", body);
+  const path = `/chains/${payload.chainId}/transactions/${txHash}`;
+  const { url, headers } = signedRequest(secret, path, body);
 
   const res = await fetch(url, {
     method: "POST",
@@ -111,24 +110,23 @@ export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload
     const text = await res.text().catch(() => "");
     throw new ApiResponseError(
       res.status,
-      `rail0-api POST /sync/transactions responded ${res.status}: ${text}`,
+      `rail0-api POST ${path} responded ${res.status}: ${text}`,
     );
   }
 }
 
-// ── POST /sync/transactions (fail) ───────────────────────────────────────────
+// ── POST /chains/:chain_id/transactions/:tx_hash (fail) ──────────────────────
 
 export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPayload): Promise<void> {
   const { secret } = requireEnv();
   const body = JSON.stringify({
-    transaction_hash: txHash,
-    chain_id: payload.chainId,
     operation: "fail",
     payment_id: payload.paymentId,
     block_number: payload.blockNumber,
     revert_reason: payload.revertReason,
   });
-  const { url, headers } = signedRequest(secret, "/sync/transactions", body);
+  const path = `/chains/${payload.chainId}/transactions/${txHash}`;
+  const { url, headers } = signedRequest(secret, path, body);
 
   const res = await fetch(url, {
     method: "POST",
@@ -141,7 +139,7 @@ export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPaylo
     const text = await res.text().catch(() => "");
     throw new ApiResponseError(
       res.status,
-      `rail0-api POST /sync/transactions responded ${res.status}: ${text}`,
+      `rail0-api POST ${path} responded ${res.status}: ${text}`,
     );
   }
 }
