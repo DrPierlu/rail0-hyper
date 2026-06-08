@@ -96,7 +96,7 @@ export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload
     block_number: payload.blockNumber,
     amount: payload.amount,
   });
-  const path = `/chains/${payload.chainId}/transactions/${txHash}`;
+  const path = `/sync/chains/${payload.chainId}/transactions/${txHash}`;
   const { url, headers } = signedRequest(secret, path, body);
 
   const res = await fetch(url, {
@@ -125,7 +125,7 @@ export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPaylo
     block_number: payload.blockNumber,
     revert_reason: payload.revertReason,
   });
-  const path = `/chains/${payload.chainId}/transactions/${txHash}`;
+  const path = `/sync/chains/${payload.chainId}/transactions/${txHash}`;
   const { url, headers } = signedRequest(secret, path, body);
 
   const res = await fetch(url, {

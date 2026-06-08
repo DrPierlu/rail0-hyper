@@ -8,7 +8,7 @@
  * Key differences from the Ponder version:
  *   - Handler registration: RAIL0.PaymentAuthorized.handler() instead of ponder.on()
  *   - Event args: event.params instead of event.args
- *   - Payment tuple: positional array [payer, payee, token, amount, authExpiry, refundExpiry, feeBps, feeReceiver]
+ *   - Payment tuple: positional array [payer, payee, token, amount, authExpiry, refundExpiry]
  *   - Chain ID: event.chainId
  *   - Block: event.block.number (number, not bigint), event.block.timestamp (number)
  *   - Transaction: event.transaction.nonce is bigint (converted to number for storage)
@@ -94,7 +94,7 @@ RAIL0.PaymentAuthorized.handler(async ({ event, context }) => {
   const id = pid(chainId, paymentId);
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
-  // p is [payer, payee, token, amount, authorizationExpiry, refundExpiry, feeBps, feeReceiver]
+  // p is [payer, payee, token, amount, authorizationExpiry, refundExpiry]
   context.Payment.set({
     id,
     paymentId,
@@ -105,8 +105,6 @@ RAIL0.PaymentAuthorized.handler(async ({ event, context }) => {
     amount: p[3],
     authorizationExpiry: p[4],
     refundExpiry: p[5],
-    feeBps: Number(p[6]),
-    feeReceiver: p[7],
     status: "authorized",
     capturableAmount: p[3],
     refundableAmount: 0n,
@@ -181,8 +179,6 @@ RAIL0.PaymentCharged.handler(async ({ event, context }) => {
     amount: p[3],
     authorizationExpiry: p[4],
     refundExpiry: p[5],
-    feeBps: Number(p[6]),
-    feeReceiver: p[7],
     status: "charged",
     capturableAmount: 0n,
     refundableAmount: p[3],
@@ -261,8 +257,6 @@ RAIL0.PaymentCaptured.handler(async ({ event, context }) => {
     payee: existing?.payee,
     token: existing?.token,
     amount: existing?.amount,
-    feeBps: existing?.feeBps,
-    feeReceiver: existing?.feeReceiver,
     authorizationExpiry: existing?.authorizationExpiry,
     refundExpiry: existing?.refundExpiry,
     txHash: existing?.txHash,
@@ -340,8 +334,6 @@ RAIL0.PaymentVoided.handler(async ({ event, context }) => {
     payee: existing?.payee,
     token: existing?.token,
     amount: existing?.amount,
-    feeBps: existing?.feeBps,
-    feeReceiver: existing?.feeReceiver,
     authorizationExpiry: existing?.authorizationExpiry,
     refundExpiry: existing?.refundExpiry,
     txHash: existing?.txHash,
@@ -419,8 +411,6 @@ RAIL0.PaymentReleased.handler(async ({ event, context }) => {
     payee: existing?.payee,
     token: existing?.token,
     amount: existing?.amount,
-    feeBps: existing?.feeBps,
-    feeReceiver: existing?.feeReceiver,
     authorizationExpiry: existing?.authorizationExpiry,
     refundExpiry: existing?.refundExpiry,
     txHash: existing?.txHash,
@@ -500,8 +490,6 @@ RAIL0.PaymentRefunded.handler(async ({ event, context }) => {
     payee: existing?.payee,
     token: existing?.token,
     amount: existing?.amount,
-    feeBps: existing?.feeBps,
-    feeReceiver: existing?.feeReceiver,
     authorizationExpiry: existing?.authorizationExpiry,
     refundExpiry: existing?.refundExpiry,
     txHash: existing?.txHash,

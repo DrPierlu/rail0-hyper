@@ -230,7 +230,7 @@ async function postSync(
   txHash: `0x${string}`,
   body: Record<string, unknown>,
 ): Promise<void> {
-  const path = `/chains/${chainId}/transactions/${txHash}`;
+  const path = `/sync/chains/${chainId}/transactions/${txHash}`;
   const bodyStr = JSON.stringify(body);
   try {
     const res = await fetch(`${baseUrl}${path}`, {

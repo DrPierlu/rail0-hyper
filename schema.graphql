@@ -16,8 +16,6 @@ type Payment {
   payee: String
   token: String
   amount: BigInt
-  feeBps: Int
-  feeReceiver: String
   authorizationExpiry: BigInt
   refundExpiry: BigInt
 

@@ -67,7 +67,7 @@ app.post("/reconcile", async (c) => {
 });
 
 /**
- * GET /chains/:chain_id/transactions/:tx_hash
+ * GET /sync/chains/:chain_id/transactions/:tx_hash
  *
  * Returns on-chain gas data for a confirmed transaction indexed by Envio.
  * Both chain_id and tx_hash are required — a tx_hash alone does not uniquely
@@ -89,7 +89,7 @@ app.post("/reconcile", async (c) => {
  * Response 400: { error: "invalid_chain_id" }
  * Response 404: { error: "not_found" }
  */
-app.get("/chains/:chain_id/transactions/:tx_hash", async (c) => {
+app.get("/sync/chains/:chain_id/transactions/:tx_hash", async (c) => {
   const txHash = c.req.param("tx_hash");
   const chainId = Number(c.req.param("chain_id"));
 
