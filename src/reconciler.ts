@@ -13,12 +13,12 @@ import { withRetry } from "./utils";
 
 type FailureRow = {
   id: string;
-  event_type: string;
-  payment_id: string;
+  eventType: string;
+  paymentId: string;
   payload: string;
   attempts: number;
-  last_error: string;
-  created_at: number;
+  lastError: string;
+  createdAt: number;
 };
 
 // ── Core reconciliation logic ─────────────────────────────────────────────────
@@ -39,10 +39,10 @@ type FailureRow = {
 /** Exported for unit testing; call startReconciler() in production. */
 export async function reconcile(pool: Pool): Promise<void> {
   const { rows } = await pool.query<FailureRow>(
-    `SELECT id, event_type, payment_id, payload, attempts, last_error, created_at
-     FROM api_sync_failures
-     WHERE resolved_at IS NULL
-     ORDER BY created_at
+    `SELECT id, "eventType", "paymentId", payload, attempts, "lastError", "createdAt"
+     FROM "ApiSyncFailure"
+     WHERE "resolvedAt" IS NULL
+     ORDER BY "createdAt"
      LIMIT $1`,
     [config.reconcileBatchSize],
   );
@@ -60,7 +60,7 @@ export async function reconcile(pool: Pool): Promise<void> {
       // Replay the rail0-api notification using the payload stored at failure time.
       // txHash goes in the URL; the rest of the payload (eventType, paymentId,
       // blockNumber, amount) goes in the request body.
-      switch (row.event_type) {
+      switch (row.eventType) {
         case "authorized":
         case "charged":
         case "captured":
@@ -73,18 +73,18 @@ export async function reconcile(pool: Pool): Promise<void> {
           await notifyApiFail(p.txHash, p as unknown as ApiFailPayload);
           break;
         default:
-          throw new Error(`Unknown event type: ${row.event_type}`);
+          throw new Error(`Unknown event type: ${row.eventType}`);
       }
     });
 
     if (result.ok) {
-      await pool.query("UPDATE api_sync_failures SET resolved_at = $1 WHERE id = $2", [
+      await pool.query(`UPDATE "ApiSyncFailure" SET "resolvedAt" = $1 WHERE id = $2`, [
         Math.floor(Date.now() / 1000),
         row.id,
       ]);
       resolved++;
     } else {
-      console.warn(`[reconciler] Failed to resolve ${row.id} (${row.event_type}): ${result.error}`);
+      console.warn(`[reconciler] Failed to resolve ${row.id} (${row.eventType}): ${result.error}`);
     }
   }
 
