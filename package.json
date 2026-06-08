@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "generated": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "concurrently": "^9.1.2",
     "envio": "^2.12.0",
