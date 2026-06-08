@@ -40,7 +40,7 @@ type FailureRow = {
 export async function reconcile(pool: Pool): Promise<void> {
   const { rows } = await pool.query<FailureRow>(
     `SELECT id, "eventType", "paymentId", payload, attempts, "lastError", "createdAt"
-     FROM "ApiSyncFailure"
+     FROM "ApiSyncFailures"
      WHERE "resolvedAt" IS NULL
      ORDER BY "createdAt"
      LIMIT $1`,
@@ -78,7 +78,7 @@ export async function reconcile(pool: Pool): Promise<void> {
     });
 
     if (result.ok) {
-      await pool.query(`UPDATE "ApiSyncFailure" SET "resolvedAt" = $1 WHERE id = $2`, [
+      await pool.query(`UPDATE "ApiSyncFailures" SET "resolvedAt" = $1 WHERE id = $2`, [
         Math.floor(Date.now() / 1000),
         row.id,
       ]);

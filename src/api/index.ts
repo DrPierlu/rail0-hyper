@@ -16,7 +16,7 @@
  * ── Table names ───────────────────────────────────────────────────────────────
  * Envio creates PostgreSQL tables named after the GraphQL entities.
  * By default the tables are stored in the public schema with quoted names:
- *   "PaymentEvent", "Payment", "ApiSyncFailure"
+ *   "PaymentEvents", "Payments", "ApiSyncFailures"
  *
  * Column names match the GraphQL field names (camelCase).
  * Run `pnpm codegen` after schema changes to regenerate Envio types.
@@ -101,7 +101,7 @@ app.get("/sync/chains/:chain_id/transactions/:tx_hash", async (c) => {
   let result: import("pg").QueryResult<Record<string, unknown>>;
   try {
     result = await pool.query(
-      `SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 AND "chainId" = $2 LIMIT 1`,
+      `SELECT * FROM "PaymentEvents" WHERE "txHash" = $1 AND "chainId" = $2 LIMIT 1`,
       [txHash, chainId],
     );
   } catch (err) {

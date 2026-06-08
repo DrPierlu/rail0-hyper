@@ -6,7 +6,7 @@
 # Voided, Released, Refunded) to set only the mutable columns without knowing
 # the full payment config.
 
-type Payment {
+type Payments {
   id: ID!
   paymentId: String!
   chainId: Int!
@@ -34,7 +34,7 @@ type Payment {
 # Append-only log of every on-chain event touching a payment.
 # id = "{chainId}_{txHash}_{logIndex}"
 
-type PaymentEvent {
+type PaymentEvents {
   id: ID!
   paymentId: String!
   chainId: Int!
@@ -63,7 +63,7 @@ type PaymentEvent {
 # Records rail0-api notification attempts that exhausted all retries.
 # The background reconciler retries these and marks them resolved (resolvedAt).
 
-type ApiSyncFailure {
+type ApiSyncFailures {
   id: ID!
   eventType: String!
   # FK → Payment.id  ("{chainId}_{paymentId}")
