@@ -59,6 +59,13 @@ if [[ ! -d "generated" ]]; then
   pnpm envio codegen
 fi
 
+# ── Generate config.yaml ─────────────────────────────────────────────────────
+# Fetches start_block per chain from rail0-api (GET /sync/blockchains).
+# Falls back to start_block: 0 if rail0-api is unreachable.
+
+echo "⚙️   Generating config.yaml…"
+node "$ROOT/bin/gen-config.mjs"
+
 # ── Start services ────────────────────────────────────────────────────────────
 
 echo ""
@@ -68,7 +75,8 @@ echo "    Hono API       → http://localhost:${API_PORT:-3001}"
 echo ""
 
 # Hono API server — runs alongside Envio, shares the same DATABASE_URL
-NODE_ENV="${NODE_ENV:-development}" pnpm tsx src/api/index.ts &
+# --env-file loads .env directly into the node process (Node >= 20, no dotenv needed)
+NODE_ENV="${NODE_ENV:-development}" pnpm tsx --env-file=.env src/api/index.ts &
 API_PID=$!
 
 # Clean up the API process when this script exits (Ctrl-C or Envio crash)

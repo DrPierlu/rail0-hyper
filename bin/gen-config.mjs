@@ -1,59 +1,64 @@
 #!/usr/bin/env node
 /**
- * bin/gen-config
+ * bin/gen-config.mjs
  *
- * Generates config.yaml from rail0-api.
+ * Generates the networks section of config.yaml based on NODE_ENV, then
+ * patches start_block values with live data from rail0-api.
  *
- * Fetches GET /sync/blockchains to get the actual deployment start block for
- * each chain, then writes a fully-populated config.yaml. Envio's config.yaml
- * is a static file — this script bridges the gap with rail0-api's dynamic
- * start block data.
+ * config.yaml is the single source of truth for chain/contract/event
+ * definitions. The static sections (field_selection, contracts/events) are
+ * preserved as-is; only the networks section is regenerated on each run.
  *
- * Must be run before starting Envio:
- *   node bin/gen-config
- *   pnpm envio dev  (or pnpm start)
+ * Chain definitions mirror rail0-indexer/src/chains.ts:
+ *   development  → ARC Testnet only
+ *   staging      → ARC Testnet + Celo Sepolia
+ *   production   → (add production chains here when ready)
  *
  * Environment variables:
- *   RAIL0_API_URL          — base URL of rail0-api (required)
- *   RAIL0_API_HMAC_SECRET  — 32-byte hex shared secret (required)
- *
- * Writes: config.yaml (committed to git as the base; overwritten on each run)
- * Fallback: if rail0-api is unreachable, falls back to start_block: 0
- *           so Envio can still start (it will scan from genesis).
+ *   NODE_ENV               — selects the chain list (default: development)
+ *   RAIL0_API_URL          — base URL of rail0-api
+ *   RAIL0_API_HMAC_SECRET  — 32-byte hex shared secret
  */
 
 import { createHmac } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { load as loadYaml } from "js-yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..");
+const CONFIG_PATH = join(__dirname, "../config.yaml");
 
-// ── Chain / contract definitions ──────────────────────────────────────────────
-// Keep in sync with src/chains.ts.
-// startBlock here is the fallback used when rail0-api is unreachable.
+// ── Chain definitions (mirrors rail0-indexer/src/chains.ts) ──────────────────
 
 const CHAINS = {
   development: [
     {
       id: 5042002,
-      rpcUrl: "https://rpc.testnet.arc.network",
-      contracts: ["0x0e393A626EfC45EBd030EBB997CDa207013C4364"],
+      rpc: "https://rpc.testnet.arc.network",
+      contracts: [
+        // "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v7 (inactive)
+        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v9
+      ],
       startBlock: 0,
     },
   ],
   staging: [
     {
       id: 5042002,
-      rpcUrl: "https://rpc.testnet.arc.network",
-      contracts: ["0x0e393A626EfC45EBd030EBB997CDa207013C4364"],
+      rpc: "https://rpc.testnet.arc.network",
+      contracts: [
+        // "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v7 (inactive)
+        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v9
+      ],
       startBlock: 0,
     },
     {
       id: 44787,
-      rpcUrl: "https://rpc.ankr.com/celo_sepolia",
-      contracts: ["0x7337ce441e831ef2904b7B2f33507d655a4381d0"],
+      rpc: "https://rpc.ankr.com/celo_sepolia",
+      contracts: [
+        "0x7337ce441e831ef2904b7B2f33507d655a4381d0", // v9
+      ],
       startBlock: 0,
     },
   ],
@@ -62,13 +67,8 @@ const CHAINS = {
   ],
 };
 
-const env = process.env.NODE_ENV;
-const chainList =
-  env === "production"
-    ? CHAINS.production
-    : env === "staging"
-      ? CHAINS.staging
-      : CHAINS.development;
+const env = process.env.NODE_ENV ?? "development";
+const chainList = CHAINS[env] ?? CHAINS.development;
 
 // ── Fetch start blocks from rail0-api ─────────────────────────────────────────
 
@@ -78,7 +78,7 @@ async function fetchStartBlocks() {
 
   if (!baseUrl || !secret) {
     console.warn(
-      "[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — using fallback start blocks",
+      "[gen-config] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — using fallback start_block: 0",
     );
     return {};
   }
@@ -97,18 +97,17 @@ async function fetchStartBlocks() {
 
     if (!res.ok) {
       console.warn(
-        `[gen-config] GET /sync/blockchains returned ${res.status} — using fallback start blocks`,
+        `[gen-config] GET /sync/blockchains returned ${res.status} — using fallback start_block: 0`,
       );
       return {};
     }
 
-    // Expected shape: [{ chain_id: number, start_block: number }, ...]
     const data = await res.json();
     const map = {};
     for (const entry of Array.isArray(data) ? data : (data.blockchains ?? [])) {
       map[entry.chain_id] = entry.start_block ?? 0;
     }
-    console.log(`[gen-config] Fetched start blocks for chains: ${Object.keys(map).join(", ")}`);
+    console.log(`[gen-config] Fetched start blocks: ${JSON.stringify(map)}`);
     return map;
   } catch (err) {
     console.warn("[gen-config] Failed to fetch start blocks:", err.message ?? err);
@@ -116,83 +115,37 @@ async function fetchStartBlocks() {
   }
 }
 
-// ── YAML generation ───────────────────────────────────────────────────────────
+// ── Build networks YAML section ───────────────────────────────────────────────
 
-function indent(lines, spaces) {
-  const pad = " ".repeat(spaces);
-  return lines.map((l) => (l.trim() === "" ? "" : `${pad}${l}`)).join("\n");
-}
-
-function generateConfig(startBlocks) {
-  const chainBlocks = chainList.map((chain) => {
+function buildNetworksSection(startBlocks) {
+  const lines = ["networks:"];
+  for (const chain of chainList) {
     const startBlock = startBlocks[chain.id] ?? chain.startBlock;
-    const contractAddresses = chain.contracts.map((a) => `          - "${a}"`).join("\n");
-
-    return `
-  - id: ${chain.id}
-    start_block: ${startBlock}
-    rpc: ${chain.rpcUrl}
-    contracts:
-      - name: RAIL0
-        address:
-${contractAddresses}`.trimStart();
-  });
-
-  return `# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
-# AUTO-GENERATED by bin/gen-config — do not edit by hand.
-# Re-run \`node bin/gen-config\` to refresh start_block values from rail0-api.
-
-name: rail0-hyper
-description: RAIL0 payment event indexer — Envio HyperSync edition
-
-# ── Global field selection ────────────────────────────────────────────────────
-# gas fields (gasUsed, effectiveGasPrice) and baseFeePerGas are required for
-# the GET /transactions/:tx_hash endpoint.
-#
-# NOTE: selecting transaction_fields triggers an additional RPC call (receipt)
-# per event to populate gas data. This is equivalent to Ponder's
-# includeTransactionReceipts: true. Evaluate the RPC cost vs. benefit before
-# enabling on high-volume chains or paid providers.
-field_selection:
-  transaction_fields:
-    - hash
-    - from
-    - nonce
-    - gas
-    - gasUsed
-    - effectiveGasPrice
-  block_fields:
-    - baseFeePerGas
-
-# ── Contract definitions ──────────────────────────────────────────────────────
-contracts:
-  - name: RAIL0
-    handler: ./src/EventHandlers.ts
-    events:
-      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
-      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
-      - event: "PaymentCaptured(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
-      - event: "PaymentVoided(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
-      - event: "PaymentReleased(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
-      - event: "PaymentRefunded(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
-
-# ── Chain / network configuration ─────────────────────────────────────────────
-networks:
-${chainBlocks
-  .map((b) =>
-    b
-      .split("\n")
-      .map((l) => (l.trim() ? `  ${l}` : l))
-      .join("\n"),
-  )
-  .join("\n")}
-`;
+    const addresses = chain.contracts.map((a) => `          - "${a}"`).join("\n");
+    lines.push(
+      `  - id: ${chain.id}`,
+      `    start_block: ${startBlock}`,
+      `    rpc: ${chain.rpc}`,
+      `    contracts:`,
+      `      - name: RAIL0`,
+      `        address:`,
+      addresses,
+    );
+  }
+  return lines.join("\n");
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Patch config.yaml ─────────────────────────────────────────────────────────
+// Preserve everything above the networks section; regenerate networks entirely.
+
+const raw = readFileSync(CONFIG_PATH, "utf-8");
 
 const startBlocks = await fetchStartBlocks();
-const yaml = generateConfig(startBlocks);
+const networksSection = buildNetworksSection(startBlocks);
 
-writeFileSync(join(ROOT, "config.yaml"), yaml, "utf-8");
-console.log("[gen-config] config.yaml written");
+// Replace everything from "networks:" to end of file.
+const networksIndex = raw.indexOf("\nnetworks:");
+const header = networksIndex >= 0 ? raw.slice(0, networksIndex) : raw;
+
+writeFileSync(CONFIG_PATH, `${header}\n${networksSection}\n`, "utf-8");
+console.log(`[gen-config] config.yaml written (env: ${env}, chains: ${chainList.map((c) => c.id).join(", ")})`);

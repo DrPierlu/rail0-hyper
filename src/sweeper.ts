@@ -19,9 +19,21 @@
  */
 
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { load as loadYaml } from "js-yaml";
 import { http, createPublicClient } from "viem";
-import { chainConfigs } from "./chains.js";
-import { config } from "./config.js";
+import { config } from "./config";
+
+// ── Chain config from config.yaml ────────────────────────────────────────────
+
+type EnvioConfig = {
+  networks: { id: number; rpc: string }[];
+};
+
+const envioConfig = loadYaml(
+  readFileSync(join(__dirname, "../config.yaml"), "utf-8"),
+) as EnvioConfig;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +79,7 @@ function makeHmacGetHeaders(secret: string) {
 // ── viem clients per chain ────────────────────────────────────────────────────
 
 const clients = new Map(
-  chainConfigs.map((c) => [c.chainId, createPublicClient({ transport: http(c.rpcUrl) })]),
+  envioConfig.networks.map((n) => [n.id, createPublicClient({ transport: http(n.rpc) })]),
 );
 
 // ── Core sweep logic ──────────────────────────────────────────────────────────
