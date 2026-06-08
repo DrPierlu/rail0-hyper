@@ -1,20 +1,20 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022"],
-    "outDir": "dist",
-    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
     "paths": {
-      "generated": ["./generated/index.ts"]
+      "generated": ["./generated/index.d.ts"]
     }
   },
-  "include": ["src/**/*", "abis/**/*"],
-  "exclude": ["node_modules", "dist", "generated"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

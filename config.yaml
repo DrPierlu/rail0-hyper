@@ -31,9 +31,10 @@ field_selection:
 # ── Contract definitions ──────────────────────────────────────────────────────
 contracts:
   - name: RAIL0
+    handler: ./src/EventHandlers.ts
     events:
-      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
-      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
+      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
+      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
       - event: "PaymentCaptured(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
       - event: "PaymentVoided(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
       - event: "PaymentReleased(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
@@ -47,7 +48,7 @@ contracts:
 # NODE_ENV selects the active chain set; bin/gen-config rewrites these entries
 # with the correct start_block from rail0-api at startup.
 
-chains:
+networks:
   - id: 5042002
     start_block: 0
     rpc: https://rpc.testnet.arc.network

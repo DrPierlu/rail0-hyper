@@ -163,16 +163,17 @@ field_selection:
 # ── Contract definitions ──────────────────────────────────────────────────────
 contracts:
   - name: RAIL0
+    handler: ./src/EventHandlers.ts
     events:
-      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
-      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address payer, address payee, address token, uint120 amount, uint48 authorizationExpiry, uint48 refundExpiry, uint16 feeBps, address feeReceiver) payment)"
+      - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
+      - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48,uint16,address) payment)"
       - event: "PaymentCaptured(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
       - event: "PaymentVoided(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
       - event: "PaymentReleased(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
       - event: "PaymentRefunded(bytes32 indexed paymentId, address indexed payer, address indexed payee, uint256 amount)"
 
 # ── Chain / network configuration ─────────────────────────────────────────────
-chains:
+networks:
 ${chainBlocks.map((b) => b.split("\n").map((l) => (l.trim() ? `  ${l}` : l)).join("\n")).join("\n")}
 `;
 }
