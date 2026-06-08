@@ -37,8 +37,9 @@ const CHAINS = {
       id: 5042002,
       rpc: "https://rpc.testnet.arc.network",
       contracts: [
-        // "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v7 (inactive)
-        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v9
+        "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v0.7.0
+        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v0.9.0
+        "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b", // v1.0.0
       ],
       startBlock: 0,
     },
@@ -48,8 +49,9 @@ const CHAINS = {
       id: 5042002,
       rpc: "https://rpc.testnet.arc.network",
       contracts: [
-        // "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v7 (inactive)
-        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v9
+        "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7", // v0.7.0
+        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v0.9.0
+        "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b", // v1.0.0
       ],
       startBlock: 0,
     },
@@ -57,7 +59,8 @@ const CHAINS = {
       id: 44787,
       rpc: "https://rpc.ankr.com/celo_sepolia",
       contracts: [
-        "0x7337ce441e831ef2904b7B2f33507d655a4381d0", // v9
+        "0x7337ce441e831ef2904b7B2f33507d655a4381d0", // v0.9.0
+        "0x0e393A626EfC45EBd030EBB997CDa207013C4364", // v1.0.0
       ],
       startBlock: 0,
     },

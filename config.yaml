@@ -44,4 +44,6 @@ networks:
     contracts:
       - name: RAIL0
         address:
+          - "0xcEA3E28cb387929876F7b1c452460fF3F40C40B7"
           - "0x0e393A626EfC45EBd030EBB997CDa207013C4364"
+          - "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b"
