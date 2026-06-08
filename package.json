@@ -2,10 +2,9 @@
   "name": "rail0-hyper",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "bash bin/dev",
-    "gen-config": "node --input-type=module < bin/gen-config",
+    "gen-config": "node bin/gen-config.mjs",
     "codegen": "envio codegen",
     "start": "concurrently \"envio start\" \"tsx src/api/index.ts\"",
     "api": "tsx src/api/index.ts",
