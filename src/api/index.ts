@@ -67,21 +67,15 @@ app.post("/reconcile", async (c) => {
 });
 
 /**
- * GET /transactions/:tx_hash
+ * GET /transactions/:chain_id/:tx_hash
  *
  * Returns on-chain gas data for a confirmed transaction indexed by Envio.
- * Gas information (gasUsed, effectiveGasPrice, baseFeePerGas) is only available
- * when the relevant transaction_fields / block_fields are configured in config.yaml.
- *
- * NOTE: The gas fields require Envio to fetch a full transaction receipt for
- * each event (like Ponder's includeTransactionReceipts: true). Evaluate the
- * RPC cost vs. benefit before enabling on high-volume chains or paid providers.
+ * Both chain_id and tx_hash are required — a tx_hash alone does not uniquely
+ * identify a transaction across multiple chains.
  *
  * Path params:
+ *   chain_id — numeric EVM chain ID
  *   tx_hash  — 0x-prefixed 32-byte transaction hash
- *
- * Query params:
- *   chain_id — numeric chain ID (optional but recommended to disambiguate)
  *
  * Response 200:
  *   {
@@ -92,30 +86,24 @@ app.post("/reconcile", async (c) => {
  *     base_fee_per_gas,   // null on pre-London blocks
  *   }
  *
+ * Response 400: { error: "invalid_chain_id" }
  * Response 404: { error: "not_found" }
  */
-app.get("/transactions/:tx_hash", async (c) => {
+app.get("/transactions/:chain_id/:tx_hash", async (c) => {
   const txHash = c.req.param("tx_hash");
-  const chainStr = c.req.query("chain_id");
-  const chainId = chainStr ? Number(chainStr) : undefined;
+  const chainId = Number(c.req.param("chain_id"));
 
-  if (chainStr && Number.isNaN(chainId)) {
+  if (Number.isNaN(chainId)) {
     return c.json({ error: "invalid_chain_id" }, 400);
   }
 
   // biome-ignore lint/suspicious/noExplicitAny: pg QueryResult rows are untyped
   let result: import("pg").QueryResult<Record<string, unknown>>;
   try {
-    if (chainId !== undefined) {
-      result = await pool.query(
-        `SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 AND "chainId" = $2 LIMIT 1`,
-        [txHash, chainId],
-      );
-    } else {
-      result = await pool.query(`SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 LIMIT 1`, [
-        txHash,
-      ]);
-    }
+    result = await pool.query(
+      `SELECT * FROM "PaymentEvent" WHERE "txHash" = $1 AND "chainId" = $2 LIMIT 1`,
+      [txHash, chainId],
+    );
   } catch (err) {
     console.error("[api] DB query error:", err);
     return c.json({ error: "db_error" }, 500);
