@@ -8,8 +8,8 @@
  *   1. GET /sync/transactions  — fetch stale submitted txs from rail0-api
  *   2. For each tx, call eth_getTransactionReceipt on its chain
  *   3a. receipt null           → still in mempool, skip
- *   3b. receipt reverted       → POST /sync/transactions { operation: "fail" }
- *   3c. receipt success        → POST /sync/transactions { operation: "confirm" }
+ *   3b. receipt reverted       → PUT /sync/chains/:chain_id/transactions/:tx_hash { operation: "fail" }
+ *   3c. receipt success        → PUT /sync/chains/:chain_id/transactions/:tx_hash { operation: "confirm" }
  *        (safety net: Ponder should have handled these, but may be temporarily down)
  *
  * The operation field returned by GET /sync/transactions maps to the event_type
@@ -217,7 +217,7 @@ async function postSync(
   const bodyStr = JSON.stringify(body);
   try {
     const res = await fetch(`${baseUrl}${path}`, {
-      method: "POST",
+      method: "PUT",
       headers: hmacHeaders(secret, bodyStr),
       body: bodyStr,
       signal: AbortSignal.timeout(config.apiTimeoutMs),
