@@ -2,20 +2,19 @@
  * sweeper.ts
  *
  * Detects on-chain reverts and unindexed confirmations for transactions that
- * were broadcast but not yet confirmed by Ponder.
+ * were broadcast but not yet confirmed by Envio.
  *
  * Every SWEEP_INTERVAL_SECS seconds:
- *   1. GET /sync/transactions  — fetch stale submitted txs from rail0-api
+ *   1. GET /sync/transactions  — fetch stale submitted txs from rail0-gateway
  *   2. For each tx, call eth_getTransactionReceipt on its chain
- *   3a. receipt null           → still in mempool, skip
- *   3b. receipt reverted       → PUT /sync/chains/:chain_id/transactions/:tx_hash { operation: "fail" }
- *   3c. receipt success        → PUT /sync/chains/:chain_id/transactions/:tx_hash { operation: "confirm" }
- *        (safety net: Ponder should have handled these, but may be temporarily down)
+ *   3a. receipt null      → still in mempool, skip
+ *   3b. receipt reverted  → notifyApiFail()   (same as handlers / reconciler)
+ *   3c. receipt success   → notifyApi()        (same as handlers / reconciler)
+ *        (safety net: Envio may be temporarily behind or the event missed)
  *
- * The operation field returned by GET /sync/transactions maps to the event_type
- * for the confirm path (authorize → authorized, charge → charged, etc.).
- *
- * Authenticated with the same HMAC-SHA256 used by the rest of the indexer.
+ * Notifications are sent via the same notifyApi / notifyApiFail used by the
+ * Envio event handlers and the reconciler, so the HTTP method, signing, and
+ * retry behaviour are centralised in gateway.ts.
  */
 
 import { readFileSync } from "node:fs";
@@ -24,6 +23,7 @@ import { load as loadYaml } from "js-yaml";
 import { http, createPublicClient } from "viem";
 import { config } from "../config";
 import { hmacHeaders } from "../hmac";
+import { notifyApi, notifyApiFail } from "../gateway";
 
 // ── Chain config from config.yaml ────────────────────────────────────────────
 
@@ -43,20 +43,22 @@ type StaleTx = {
   chain_id: number;
   /** One of: authorize | charge | capture | void | release | refund */
   operation: string;
+  /** On-chain amount in token base units (string); present for capture/refund. */
+  amount?: string;
 };
 
 type SyncTransactionsResponse = {
   transactions: StaleTx[];
 };
 
-// Maps rail0-api "operation" (verb) to the event_type expected by POST /sync/transactions.
+// Maps operation verb (from gateway) to the event_type expected by notifyApi.
 const OPERATION_TO_EVENT_TYPE: Record<string, string> = {
   authorize: "authorized",
-  charge: "charged",
-  capture: "captured",
-  void: "voided",
-  release: "released",
-  refund: "refunded",
+  charge:    "charged",
+  capture:   "captured",
+  void:      "voided",
+  release:   "released",
+  refund:    "refunded",
 };
 
 // ── viem clients per chain ────────────────────────────────────────────────────
@@ -69,19 +71,19 @@ const clients = new Map(
 
 export async function sweep(): Promise<void> {
   const baseUrl = process.env.RAIL0_API_URL;
-  const secret = process.env.RAIL0_API_HMAC_SECRET;
+  const secret  = process.env.RAIL0_API_HMAC_SECRET;
 
   if (!baseUrl || !secret) {
     console.warn("[sweeper] RAIL0_API_URL or RAIL0_API_HMAC_SECRET not set — skipping");
     return;
   }
 
-  // 1. Fetch stale submitted transactions from rail0-api.
+  // 1. Fetch stale submitted transactions from rail0-gateway.
   let staleTxs: StaleTx[];
   try {
     const res = await fetch(`${baseUrl}/sync/transactions`, {
       headers: hmacHeaders(secret, ""),
-      signal: AbortSignal.timeout(config.apiTimeoutMs),
+      signal:  AbortSignal.timeout(config.apiTimeoutMs),
     });
     if (!res.ok) {
       console.warn(`[sweeper] GET /sync/transactions failed: ${res.status}`);
@@ -100,11 +102,11 @@ export async function sweep(): Promise<void> {
     JSON.stringify({ component: "sweeper", event: "checking_stale_txs", count: staleTxs.length }),
   );
 
-  // 2. Check each tx on-chain.
-  await Promise.allSettled(staleTxs.map((tx) => checkTx(tx, baseUrl, secret)));
+  // 2. Check each tx on-chain concurrently.
+  await Promise.allSettled(staleTxs.map((tx) => checkTx(tx)));
 }
 
-async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<void> {
+async function checkTx(tx: StaleTx): Promise<void> {
   const client = clients.get(tx.chain_id);
   if (!client) {
     console.warn(
@@ -148,10 +150,10 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
       try {
         const originalTx = await client.getTransaction({ hash: tx.transaction_hash });
         await client.call({
-          to: originalTx.to ?? undefined,
-          data: originalTx.input,
-          value: originalTx.value,
-          gas: originalTx.gas,
+          to:          originalTx.to ?? undefined,
+          data:        originalTx.input,
+          value:       originalTx.value,
+          gas:         originalTx.gas,
           blockNumber: receipt.blockNumber,
         });
       } catch (err) {
@@ -169,15 +171,28 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
         revert_reason: revertReason,
       }),
     );
-    await postSync(baseUrl, secret, tx.chain_id, tx.transaction_hash, {
-      operation: "fail",
-      payment_id: tx.payment_id,
-      block_number: Number(receipt.blockNumber),
-      revert_reason: revertReason,
-    });
+
+    try {
+      await notifyApiFail(tx.transaction_hash, {
+        chainId:      tx.chain_id,
+        paymentId:    tx.payment_id,
+        blockNumber:  Number(receipt.blockNumber),
+        revertReason: revertReason,
+      });
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          component: "sweeper",
+          event: "notify_fail_error",
+          tx: tx.transaction_hash,
+          error: String(err),
+        }),
+      );
+    }
+
   } else if (receipt.status === "success") {
-    const event_type = OPERATION_TO_EVENT_TYPE[tx.operation];
-    if (!event_type) {
+    const eventType = OPERATION_TO_EVENT_TYPE[tx.operation];
+    if (!eventType) {
       console.warn(
         JSON.stringify({
           component: "sweeper",
@@ -188,55 +203,34 @@ async function checkTx(tx: StaleTx, baseUrl: string, secret: string): Promise<vo
       );
       return;
     }
+
     console.warn(
       JSON.stringify({
         component: "sweeper",
         event: "confirmed_not_indexed",
         tx: tx.transaction_hash,
         payment: tx.payment_id,
-        event_type,
+        event_type: eventType,
       }),
     );
-    await postSync(baseUrl, secret, tx.chain_id, tx.transaction_hash, {
-      operation: "confirm",
-      payment_id: tx.payment_id,
-      event_type,
-      block_number: Number(receipt.blockNumber),
-    });
-  }
-}
 
-async function postSync(
-  baseUrl: string,
-  secret: string,
-  chainId: number,
-  txHash: `0x${string}`,
-  body: Record<string, unknown>,
-): Promise<void> {
-  const path = `/sync/chains/${chainId}/transactions/${txHash}`;
-  const bodyStr = JSON.stringify(body);
-  try {
-    const res = await fetch(`${baseUrl}${path}`, {
-      method: "PUT",
-      headers: hmacHeaders(secret, bodyStr),
-      body: bodyStr,
-      signal: AbortSignal.timeout(config.apiTimeoutMs),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
+    try {
+      await notifyApi(tx.transaction_hash, {
+        eventType:   eventType as "authorized" | "charged" | "captured" | "voided" | "released" | "refunded",
+        chainId:     tx.chain_id,
+        paymentId:   tx.payment_id,
+        blockNumber: Number(receipt.blockNumber),
+      });
+    } catch (err) {
       console.warn(
         JSON.stringify({
           component: "sweeper",
-          event: "post_sync_failed",
-          status: res.status,
-          body: text,
+          event: "notify_confirm_error",
+          tx: tx.transaction_hash,
+          error: String(err),
         }),
       );
     }
-  } catch (err) {
-    console.warn(
-      JSON.stringify({ component: "sweeper", event: "post_sync_error", error: String(err) }),
-    );
   }
 }
 
