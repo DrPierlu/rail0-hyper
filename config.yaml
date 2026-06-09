@@ -70,7 +70,7 @@ contracts:
 # ── Chain / network configuration ─────────────────────────────────────────────
 networks:
   - id: 5042002
-    start_block: 0
+    start_block: 43959245 # rpc-binary-search
     rpc: https://rpc.testnet.arc.network
     contracts:
       - name: RAIL0
