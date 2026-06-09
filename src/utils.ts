@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ApiResponseError } from "./api-client";
+import { ApiResponseError } from "./gateway";
 import { config } from "./config";
 
 // ── rail0_id checksum verification ────────────────────────────────────────────

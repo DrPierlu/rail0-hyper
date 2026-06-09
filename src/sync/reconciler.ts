@@ -1,13 +1,16 @@
-import { Pool } from "pg";
-
+import type { Pool } from "pg";
 import {
   type ApiFailPayload,
   type ApiNotifyPayload,
   notifyApi,
   notifyApiFail,
-} from "./api-client.js";
-import { config } from "./config";
-import { withRetry } from "./utils";
+} from "../gateway.js";
+import { config } from "../config";
+import { makePgPool } from "../db";
+import { withRetry } from "../utils";
+
+// Envio creates tables in this schema (default: "public", override with ENVIO_PG_PUBLIC_SCHEMA).
+const PG_SCHEMA = process.env.ENVIO_PG_PUBLIC_SCHEMA ?? "public";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,7 +43,7 @@ type FailureRow = {
 export async function reconcile(pool: Pool): Promise<void> {
   const { rows } = await pool.query<FailureRow>(
     `SELECT id, "eventType", "paymentId", payload, attempts, "lastError", "createdAt"
-     FROM "ApiSyncFailures"
+     FROM "${PG_SCHEMA}"."ApiSyncFailure"
      WHERE "resolvedAt" IS NULL
      ORDER BY "createdAt"
      LIMIT $1`,
@@ -78,7 +81,7 @@ export async function reconcile(pool: Pool): Promise<void> {
     });
 
     if (result.ok) {
-      await pool.query(`UPDATE "ApiSyncFailures" SET "resolvedAt" = $1 WHERE id = $2`, [
+      await pool.query(`UPDATE "${PG_SCHEMA}"."ApiSyncFailure" SET "resolvedAt" = $1 WHERE id = $2`, [
         Math.floor(Date.now() / 1000),
         row.id,
       ]);
@@ -97,21 +100,16 @@ export async function reconcile(pool: Pool): Promise<void> {
  * Starts the background reconciliation loop.
  *
  * - Runs immediately on start, then every reconcileIntervalSecs seconds.
- * - Silently skips if DATABASE_URL is not set (e.g. local dev with PGlite).
  * - Returns a triggerNow() function for on-demand runs (e.g. from an API route).
  */
 export function startReconciler(): { triggerNow: () => Promise<void> } {
-  const noop = () => Promise.resolve();
-
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    console.warn("[reconciler] DATABASE_URL not set — reconciler disabled");
-    return { triggerNow: noop };
-  }
-
-  const pool = new Pool({ connectionString, max: 2 });
+  const pool = makePgPool(2);
   const run = () =>
-    reconcile(pool).catch((err) => console.error("[reconciler] Unexpected error:", err));
+    reconcile(pool).catch((err) => {
+      // Table not yet created by Envio — silently skip until next tick.
+      if (err instanceof Error && err.message.includes("does not exist")) return;
+      console.error("[reconciler] Unexpected error:", err);
+    });
 
   if (config.reconcileIntervalSecs > 0) {
     // Run once immediately, then on schedule.

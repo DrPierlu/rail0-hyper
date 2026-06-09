@@ -27,7 +27,7 @@ field_selection:
 # ── Contract definitions ──────────────────────────────────────────────────────
 contracts:
   - name: RAIL0
-    handler: ./src/EventHandlers.ts
+    handler: ./src/handlers.ts
     events:
       - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"
       - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"
@@ -39,7 +39,7 @@ contracts:
 # ── Chain / network configuration ─────────────────────────────────────────────
 networks:
   - id: 5042002
-    start_block: 0
+    start_block: 43959245
     rpc: https://rpc.testnet.arc.network
     contracts:
       - name: RAIL0
@@ -49,7 +49,7 @@ networks:
           - "0x4CCC4DdeBB8A63B9186936A8C0FA404910A4311b" # v1.0.0
 
   - id: 44787
-    start_block: 0
+    start_block: 26787538
     rpc: https://rpc.ankr.com/celo_sepolia
     contracts:
       - name: RAIL0

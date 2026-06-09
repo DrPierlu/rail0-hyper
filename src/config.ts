@@ -2,7 +2,7 @@
  * Application configuration — non-secret parameters.
  *
  * Secrets stay in .env and are never defined here:
- *   DATABASE_URL          — Envio index DB (PostgreSQL)
+ *   ENVIO_PG_*            — PostgreSQL connection (shared with Envio)
  *   RAIL0_API_URL         — Base URL of rail0-api (e.g. https://api.rail0.io)
  *   RAIL0_API_HMAC_SECRET — 32-byte hex shared secret for HMAC request signing
  */

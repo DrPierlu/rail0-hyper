@@ -22,6 +22,7 @@ if [[ -f ".env" ]]; then
   set +o allexport
 fi
 
+
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 
 command -v node >/dev/null 2>&1 || { echo "❌  node not found"; exit 1; }
@@ -74,7 +75,7 @@ fi
 # Falls back to existing values if rail0-api is unreachable.
 
 echo "⚙️   Patching start_block in ${ENVIO_CONFIG}…"
-NODE_ENV="$NODE_ENV" node "$ROOT/bin/gen-config.mjs"
+NODE_ENV="$NODE_ENV" node "$ROOT/bin/sync-start-blocks.mjs"
 
 # ── Start services ────────────────────────────────────────────────────────────
 

@@ -10,7 +10,7 @@
  *   GET  /transactions/:tx_hash       — on-chain gas data for a confirmed tx
  *
  * Environment variables:
- *   DATABASE_URL          — PostgreSQL connection string (same DB as Envio)
+ *   ENVIO_PG_*            — PostgreSQL connection (shared with Envio)
  *   API_PORT              — port to listen on (default: 3001)
  *
  * ── Table names ───────────────────────────────────────────────────────────────
@@ -24,18 +24,15 @@
 
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { Pool } from "pg";
 
 import { config } from "../config";
-import { startReconciler } from "../reconciler";
-import { startSweeper } from "../sweeper";
+import { makePgPool } from "../db";
+import { startReconciler } from "../sync/reconciler";
+import { startSweeper } from "../sync/sweeper";
 
 // ── DB pool ───────────────────────────────────────────────────────────────────
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 5,
-});
+const pool = makePgPool(5);
 
 // ── Background services ───────────────────────────────────────────────────────
 
@@ -97,7 +94,7 @@ app.get("/sync/chains/:chain_id/transactions/:tx_hash", async (c) => {
     return c.json({ error: "invalid_chain_id" }, 400);
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: pg QueryResult rows are untyped
+  
   let result: import("pg").QueryResult<Record<string, unknown>>;
   try {
     result = await pool.query(

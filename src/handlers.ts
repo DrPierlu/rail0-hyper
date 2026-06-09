@@ -12,12 +12,12 @@
  *   - Chain ID: event.chainId
  *   - Block: event.block.number (number, not bigint), event.block.timestamp (number)
  *   - Transaction: event.transaction.nonce is bigint (converted to number for storage)
- *   - DB: context.Payments.set() / context.Payments.get() — synchronous set, async get
+ *   - DB: context.Payment.set() / context.Payment.get() — synchronous set, async get
  */
 
 import { RAIL0 } from "generated";
 import type { handlerContext } from "../generated/src/Types.gen";
-import { type ApiNotifyPayload, notifyApi } from "./api-client";
+import { type ApiNotifyPayload, notifyApi } from "./gateway";
 import { config } from "./config";
 import { isApiPaymentId, withRetry } from "./utils";
 
@@ -57,7 +57,7 @@ async function notifyAndRecord(
         error: apiResult.error,
       }),
     );
-    context.ApiSyncFailures.set({
+    context.ApiSyncFailure.set({
       id: evId,
       eventType: payload.eventType,
       paymentId: id,
@@ -95,7 +95,7 @@ RAIL0.PaymentAuthorized.handler(async ({ event, context }) => {
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
   // p is [payer, payee, token, amount, authorizationExpiry, refundExpiry]
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -113,7 +113,7 @@ RAIL0.PaymentAuthorized.handler(async ({ event, context }) => {
     blockTimestamp: event.block.timestamp,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,
@@ -169,7 +169,7 @@ RAIL0.PaymentCharged.handler(async ({ event, context }) => {
   const id = pid(chainId, paymentId);
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -187,7 +187,7 @@ RAIL0.PaymentCharged.handler(async ({ event, context }) => {
     blockTimestamp: event.block.timestamp,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,
@@ -244,12 +244,12 @@ RAIL0.PaymentCaptured.handler(async ({ event, context }) => {
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
   // Read current state to compute partial capture amounts correctly.
-  const existing = await context.Payments.get(id);
+  const existing = await context.Payment.get(id);
   const prevCapturable = existing?.capturableAmount ?? 0n;
   const prevRefundable = existing?.refundableAmount ?? 0n;
   const newCapturable = prevCapturable - amount;
 
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -267,7 +267,7 @@ RAIL0.PaymentCaptured.handler(async ({ event, context }) => {
     refundableAmount: prevRefundable + amount,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,
@@ -324,9 +324,9 @@ RAIL0.PaymentVoided.handler(async ({ event, context }) => {
   const id = pid(chainId, paymentId);
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
-  const existing = await context.Payments.get(id);
+  const existing = await context.Payment.get(id);
 
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -344,7 +344,7 @@ RAIL0.PaymentVoided.handler(async ({ event, context }) => {
     refundableAmount: existing?.refundableAmount ?? 0n,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,
@@ -401,9 +401,9 @@ RAIL0.PaymentReleased.handler(async ({ event, context }) => {
   const id = pid(chainId, paymentId);
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
-  const existing = await context.Payments.get(id);
+  const existing = await context.Payment.get(id);
 
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -421,7 +421,7 @@ RAIL0.PaymentReleased.handler(async ({ event, context }) => {
     refundableAmount: existing?.refundableAmount ?? 0n,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,
@@ -478,11 +478,11 @@ RAIL0.PaymentRefunded.handler(async ({ event, context }) => {
   const id = pid(chainId, paymentId);
   const evId = eid(chainId, event.transaction.hash, event.logIndex);
 
-  const existing = await context.Payments.get(id);
+  const existing = await context.Payment.get(id);
   const prevRefundable = existing?.refundableAmount ?? 0n;
   const newRefundable = prevRefundable - amount;
 
-  context.Payments.set({
+  context.Payment.set({
     id,
     paymentId,
     chainId,
@@ -500,7 +500,7 @@ RAIL0.PaymentRefunded.handler(async ({ event, context }) => {
     refundableAmount: newRefundable,
   });
 
-  context.PaymentEvents.set({
+  context.PaymentEvent.set({
     id: evId,
     paymentId: id,
     chainId,

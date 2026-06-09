@@ -1,5 +1,5 @@
 /**
- * api-client.ts
+ * gateway.ts
  *
  * HTTP client for the rail0-api transaction-confirmation endpoint.
  *
@@ -25,8 +25,8 @@
  *   RAIL0_API_HMAC_SECRET  — 32-byte (64 hex char) shared secret
  */
 
-import { createHmac } from "node:crypto";
 import { config } from "./config";
+import { hmacHeaders } from "./hmac";
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -61,18 +61,12 @@ export type ApiFailPayload = {
   revertReason?: string;
 };
 
-// ── Shared HMAC helper ────────────────────────────────────────────────────────
+// ── Request builder ───────────────────────────────────────────────────────────
 
 function signedRequest(secret: string, path: string, body: string) {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   return {
     url: `${process.env.RAIL0_API_URL}${path}`,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Rail0-Timestamp": timestamp,
-      "X-Rail0-Signature": signature,
-    },
+    headers: hmacHeaders(secret, body),
   };
 }
 
@@ -80,7 +74,7 @@ function requireEnv(): { baseUrl: string; secret: string } {
   const baseUrl = process.env.RAIL0_API_URL;
   const secret = process.env.RAIL0_API_HMAC_SECRET;
   if (!baseUrl || !secret) {
-    throw new Error("RAIL0_API_URL and RAIL0_API_HMAC_SECRET must be set in .env.local.");
+    throw new Error("RAIL0_API_URL and RAIL0_API_HMAC_SECRET must be set.");
   }
   return { baseUrl, secret };
 }
@@ -99,12 +93,20 @@ export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload
   const path = `/sync/chains/${payload.chainId}/transactions/${txHash}`;
   const { url, headers } = signedRequest(secret, path, body);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body,
-    signal: AbortSignal.timeout(config.apiTimeoutMs),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(config.apiTimeoutMs),
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({ component: "gateway", event: "api_unavailable", path, error: String(err) }),
+    );
+    throw err;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -128,12 +130,20 @@ export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPaylo
   const path = `/sync/chains/${payload.chainId}/transactions/${txHash}`;
   const { url, headers } = signedRequest(secret, path, body);
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body,
-    signal: AbortSignal.timeout(config.apiTimeoutMs),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(config.apiTimeoutMs),
+    });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({ component: "gateway", event: "api_unavailable", path, error: String(err) }),
+    );
+    throw err;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

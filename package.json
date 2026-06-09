@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bash bin/dev",
     "build": "tsup",
-    "gen-config": "node bin/gen-config.mjs",
+    "sync-start-blocks": "node bin/sync-start-blocks.mjs",
     "codegen": "envio codegen",
     "start": "concurrently \"envio start\" \"tsx src/api/index.ts\"",
     "api": "tsx src/api/index.ts",

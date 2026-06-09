@@ -18,12 +18,12 @@
  * Authenticated with the same HMAC-SHA256 used by the rest of the indexer.
  */
 
-import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { load as loadYaml } from "js-yaml";
 import { http, createPublicClient } from "viem";
-import { config } from "./config";
+import { config } from "../config";
+import { hmacHeaders } from "../hmac";
 
 // ── Chain config from config.yaml ────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ type EnvioConfig = {
 };
 
 const envioConfig = loadYaml(
-  readFileSync(join(__dirname, "../config.yaml"), "utf-8"),
+  readFileSync(join(__dirname, "../../config.yaml"), "utf-8"),
 ) as EnvioConfig;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -59,23 +59,6 @@ const OPERATION_TO_EVENT_TYPE: Record<string, string> = {
   refund: "refunded",
 };
 
-// ── HMAC helper ───────────────────────────────────────────────────────────────
-
-function makeHmacHeaders(secret: string, body: string) {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
-  return {
-    "Content-Type": "application/json",
-    "X-Rail0-Timestamp": timestamp,
-    "X-Rail0-Signature": signature,
-  };
-}
-
-// For GET requests the body is empty but we still sign an empty string.
-function makeHmacGetHeaders(secret: string) {
-  return makeHmacHeaders(secret, "");
-}
-
 // ── viem clients per chain ────────────────────────────────────────────────────
 
 const clients = new Map(
@@ -97,7 +80,7 @@ export async function sweep(): Promise<void> {
   let staleTxs: StaleTx[];
   try {
     const res = await fetch(`${baseUrl}/sync/transactions`, {
-      headers: makeHmacGetHeaders(secret),
+      headers: hmacHeaders(secret, ""),
       signal: AbortSignal.timeout(config.apiTimeoutMs),
     });
     if (!res.ok) {
@@ -235,7 +218,7 @@ async function postSync(
   try {
     const res = await fetch(`${baseUrl}${path}`, {
       method: "POST",
-      headers: makeHmacHeaders(secret, bodyStr),
+      headers: hmacHeaders(secret, bodyStr),
       body: bodyStr,
       signal: AbortSignal.timeout(config.apiTimeoutMs),
     });

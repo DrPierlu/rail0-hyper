@@ -20,7 +20,7 @@ field_selection:
 # ── Contract definitions ──────────────────────────────────────────────────────
 contracts:
   - name: RAIL0
-    handler: ./src/EventHandlers.ts
+    handler: ./src/handlers.ts
     events:
       - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"
       - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"

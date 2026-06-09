@@ -21,13 +21,44 @@ field_selection:
     - gas
     - gasUsed
     - effectiveGasPrice
+    # - to                    # recipient address
+    # - value                 # ETH transferred (wei)
+    # - input                 # calldata
+    # - gas_price             # gas price for legacy txs (pre-EIP-1559)
+    # - max_fee_per_gas       # EIP-1559 max total fee per gas
+    # - max_priority_fee_per_gas  # EIP-1559 miner tip per gas
+    # - type                  # tx type: 0=legacy 1=EIP-2930 2=EIP-1559
+    # - chain_id              # chain the tx was signed for
+    # - transaction_index     # position within the block
+    # - cumulative_gas_used   # total gas used in block up to this tx
+    # - v                     # ECDSA signature component
+    # - r                     # ECDSA signature component
+    # - s                     # ECDSA signature component
   block_fields:
-    - baseFeePerGas
+    - baseFeePerGas           # EIP-1559 base fee burned per gas
+    # - number                # block height
+    # - hash                  # block hash
+    # - timestamp             # Unix timestamp (seconds)
+    # - gas_limit             # max gas allowed in the block
+    # - gas_used              # total gas consumed by all txs
+    # - miner                 # validator / miner address
+    # - parent_hash           # hash of the previous block
+    # - size                  # block size in bytes
+    # - transactions_root     # Merkle root of transactions trie
+    # - state_root            # Merkle root of state trie
+    # - receipts_root         # Merkle root of receipts trie
+    # - logs_bloom            # bloom filter of all log topics/addresses
+    # - difficulty            # PoW difficulty (pre-Merge only)
+    # - total_difficulty      # cumulative PoW difficulty (pre-Merge only)
+    # - extra_data            # arbitrary data field set by the miner
+    # - uncles                # list of uncle block hashes
+    # - nonce                 # PoW nonce (pre-Merge only)
+    # - sha3_uncles           # hash of the uncles list
 
 # ── Contract definitions ──────────────────────────────────────────────────────
 contracts:
   - name: RAIL0
-    handler: ./src/EventHandlers.ts
+    handler: ./src/handlers.ts
     events:
       - event: "PaymentAuthorized(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"
       - event: "PaymentCharged(bytes32 indexed paymentId, address indexed payer, address indexed payee, (address,address,address,uint120,uint48,uint48) payment)"
