@@ -79,7 +79,7 @@ function requireEnv(): { baseUrl: string; secret: string } {
   return { baseUrl, secret };
 }
 
-// ── POST /chains/:chain_id/transactions/:tx_hash (confirm) ───────────────────
+// ── PUT /sync/chains/:chain_id/transactions/:tx_hash (confirm) ───────────────
 
 export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload): Promise<void> {
   const { secret } = requireEnv();
@@ -96,7 +96,7 @@ export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "POST",
+      method: "PUT",
       headers,
       body,
       signal: AbortSignal.timeout(config.apiTimeoutMs),
@@ -112,12 +112,12 @@ export async function notifyApi(txHash: `0x${string}`, payload: ApiNotifyPayload
     const text = await res.text().catch(() => "");
     throw new ApiResponseError(
       res.status,
-      `rail0-api POST ${path} responded ${res.status}: ${text}`,
+      `rail0-api PUT ${path} responded ${res.status}: ${text}`,
     );
   }
 }
 
-// ── POST /chains/:chain_id/transactions/:tx_hash (fail) ──────────────────────
+// ── PUT /sync/chains/:chain_id/transactions/:tx_hash (fail) ──────────────────
 
 export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPayload): Promise<void> {
   const { secret } = requireEnv();
@@ -133,7 +133,7 @@ export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPaylo
   let res: Response;
   try {
     res = await fetch(url, {
-      method: "POST",
+      method: "PUT",
       headers,
       body,
       signal: AbortSignal.timeout(config.apiTimeoutMs),
@@ -149,7 +149,7 @@ export async function notifyApiFail(txHash: `0x${string}`, payload: ApiFailPaylo
     const text = await res.text().catch(() => "");
     throw new ApiResponseError(
       res.status,
-      `rail0-api POST ${path} responded ${res.status}: ${text}`,
+      `rail0-api PUT ${path} responded ${res.status}: ${text}`,
     );
   }
 }
