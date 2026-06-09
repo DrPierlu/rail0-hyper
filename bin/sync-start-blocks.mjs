@@ -224,20 +224,26 @@ const networks = parsed?.networks ?? [];
 
 const { startBlocks: apiStartBlocks, explorerUrls } = await fetchStartBlocks();
 
-// For networks not covered by rail0-api, detect deploy block via explorer or RPC.
-const startBlocks = { ...apiStartBlocks };
+// Resolve start block + source label for each network.
+const resolved = {}; // chain_id → { block, source }
 for (const network of networks) {
-  if (network.id in startBlocks) continue;
-  console.log(`[sync-start-blocks] network ${network.id}: not in rail0-api response — detecting deploy block…`);
-  startBlocks[network.id] = await findNetworkStartBlock(network, explorerUrls[network.id]);
+  if (network.id in apiStartBlocks) {
+    resolved[network.id] = { block: apiStartBlocks[network.id], source: "rail0-api" };
+  } else {
+    console.log(`[sync-start-blocks] network ${network.id}: not in rail0-api response — detecting deploy block…`);
+    const explorerUrl = explorerUrls[network.id];
+    const block = await findNetworkStartBlock(network, explorerUrl);
+    const source = block === 0 ? "fallback" : explorerUrl ? "explorer" : "rpc-binary-search";
+    resolved[network.id] = { block, source };
+  }
 }
 
 let patched = raw;
 for (const network of networks) {
-  const block = startBlocks[network.id] ?? 0;
+  const { block, source } = resolved[network.id] ?? { block: 0, source: "fallback" };
   patched = patched.replace(
-    new RegExp(`(- id: ${network.id}[\\s\\S]*?start_block: )\\d+`),
-    `$1${block}`,
+    new RegExp(`(- id: ${network.id}[\\s\\S]*?start_block: )\\d+(\\s*#[^\n]*)?`),
+    `$1${block} # ${source}`,
   );
 }
 
